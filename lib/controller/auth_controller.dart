@@ -2,7 +2,10 @@
 // Manages authentication state (email/password + Google Sign-In stubs).
 // Wire up firebase_auth + google_sign_in packages for production.
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 enum AuthStatus { idle, loading, success, error }
 
@@ -42,41 +45,49 @@ class AuthState {
 class AuthController extends StateNotifier<AuthState> {
   AuthController() : super(const AuthState());
 
+  // Get a convenient reference to the Supabase client
+  final _supabase = Supabase.instance.client;
+
   // ── Email / Password ──────────────────────────────────────────────────────
 
   Future<void> signIn(String email, String password) async {
     state = state.copyWith(status: AuthStatus.loading);
-    await Future.delayed(const Duration(seconds: 1)); // simulate network
-    // TODO: replace with FirebaseAuth.instance.signInWithEmailAndPassword(...)
-    if (email.isNotEmpty && password.length >= 6) {
+    try {
+      final AuthResponse res = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      
       state = state.copyWith(
         status: AuthStatus.success,
-        userEmail: email,
-        userName: email.split('@').first,
+        userEmail: res.user?.email,
+        userName: res.user?.userMetadata?['full_name'] ?? email.split('@').first,
       );
-    } else {
-      state = state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: 'Invalid email or password.',
-      );
+    } on AuthException catch (e) {
+      state = state.copyWith(status: AuthStatus.error, errorMessage: e.message);
+    } catch (e) {
+      state = state.copyWith(status: AuthStatus.error, errorMessage: 'An unexpected error occurred.');
     }
   }
 
   Future<void> register(String name, String email, String password) async {
     state = state.copyWith(status: AuthStatus.loading);
-    await Future.delayed(const Duration(seconds: 1));
-    // TODO: replace with FirebaseAuth.instance.createUserWithEmailAndPassword(...)
-    if (email.isNotEmpty && password.length >= 6) {
+    try {
+      final AuthResponse res = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+        data: {'full_name': name}, // Store the user's name in Supabase metadata
+      );
+      
       state = state.copyWith(
         status: AuthStatus.success,
-        userEmail: email,
+        userEmail: res.user?.email,
         userName: name,
       );
-    } else {
-      state = state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: 'Please fill in all fields correctly.',
-      );
+    } on AuthException catch (e) {
+      state = state.copyWith(status: AuthStatus.error, errorMessage: e.message);
+    } catch (e) {
+      state = state.copyWith(status: AuthStatus.error, errorMessage: 'An unexpected error occurred.');
     }
   }
 
@@ -84,23 +95,52 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> signInWithGoogle() async {
     state = state.copyWith(status: AuthStatus.loading);
-    await Future.delayed(const Duration(seconds: 1));
-    // TODO: implement with google_sign_in + firebase_auth packages:
-    // final googleUser = await GoogleSignIn().signIn();
-    // final googleAuth = await googleUser!.authentication;
-    // final credential = GoogleAuthProvider.credential(
-    //   accessToken: googleAuth.accessToken,
-    //   idToken: googleAuth.idToken,
-    // );
-    // await FirebaseAuth.instance.signInWithCredential(credential);
-    state = state.copyWith(
-      status: AuthStatus.success,
-      userEmail: 'ahmad@example.com',
-      userName: 'Ahmad Razif',
-    );
+    try {
+      
+      final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID']!;
+      final iosClientId = dotenv.env['GOOGLE_IOS_CLIENT_ID']!;
+
+      final googleSignIn = GoogleSignIn.instance;
+      await googleSignIn.initialize(
+        clientId: iosClientId,
+        serverClientId: webClientId,
+      );
+
+      final googleUser = await googleSignIn.authenticate();
+
+      final googleAuth = googleUser.authentication;
+      final idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        state = state.copyWith(status: AuthStatus.error, errorMessage: 'No Email Was Found.');
+        return;
+      }
+
+      // Pass the tokens to Supabase
+      final AuthResponse res = await _supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+      );
+
+      state = state.copyWith(
+        status: AuthStatus.success,
+        userEmail: res.user?.email,
+        userName: res.user?.userMetadata?['full_name'] ?? res.user?.email?.split('@').first,
+      );
+    } on AuthException catch (e) {
+      state = state.copyWith(status: AuthStatus.error, errorMessage: e.message);
+    } catch (e) {
+      // 👈 1. Print the actual error to your terminal!
+      print('🔥 REAL GOOGLE ERROR: $e'); 
+      
+      // 👈 2. Show the real error on the screen temporarily
+      state = state.copyWith(status: AuthStatus.error, errorMessage: e.toString()); 
+    }
   }
 
-  void signOut() {
+  // ── Sign Out ───────────────────────────────────────────────────────────────
+  Future<void> signOut() async {
+    await _supabase.auth.signOut();
     state = const AuthState();
   }
 

@@ -156,6 +156,20 @@ fabric.properties
 # Editor-based Rest Client
 .idea/httpRequests
 
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.buildlog/
+.history
+.svn/
+
+# API Keys
+.env
+
 
 ### https://raw.github.com/github/gitignore/80a8803b004013d17291196825a327b9e871f009/Global/macOS.gitignore
 
