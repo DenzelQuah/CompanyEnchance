@@ -124,7 +124,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         duration: const Duration(milliseconds: 250),
                         child: _isLogin
                             ? _LoginForm(
-                                key: const ValueKey('login'),
+                                key: const ValueKey('Login'),
                                 emailCtrl: _loginEmailCtrl,
                                 passCtrl: _loginPassCtrl,
                                 obscure: _obscurePassword,
@@ -133,7 +133,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                 isLoading: authState.isLoading,
                               )
                             : _RegisterForm(
-                                key: const ValueKey('register'),
+                                key: const ValueKey('Register'),
                                 nameCtrl: _regNameCtrl,
                                 emailCtrl: _regEmailCtrl,
                                 passCtrl: _regPassCtrl,
