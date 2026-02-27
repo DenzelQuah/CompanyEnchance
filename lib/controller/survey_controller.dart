@@ -2,6 +2,7 @@
 // Riverpod StateNotifier — owns all survey navigation & response state.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../model/survey_model.dart';
 import '../../model/dashboard_model.dart';
 
@@ -9,40 +10,158 @@ class SurveyController extends StateNotifier<SurveyModel> {
   SurveyController() : super(const SurveyModel());
 
   // ── Navigation ──────────────────────────────────────────────────────────────
+/// Checks if the current step has the required data before advancing.
+  bool _validateCurrentStep() {
+    switch (state.currentStep) {
+      case 0:
+        if (state.businessName.trim().isEmpty) {
+          _setError('Please enter your business name.');
+          return false;
+        }
+        if (state.sector.isEmpty) {
+          _setError('Please select your business sector.');
+          return false;
+        }
+        return true;
+      case 1:
+        if (state.location.isEmpty) {
+          _setError('Please select your location.');
+          return false;
+        }
+        return true;
+      case 2:
+        if (state.salesTracking == null) {
+          _setError('Please select how you track sales.');
+          return false;
+        }
+        return true;
+      case 3:
+        return true; // Team size always has a default value (5)
+      case 4:
+        if (state.primaryGoal == null) {
+          _setError('Please select your primary goal.');
+          return false;
+        }
+        return true;
+      case 5:
+        return true; // Audited statements is a boolean toggle (defaults to false)
+      case 6:
+        if (state.digitalPresence.isEmpty) {
+          _setError('Please select at least one digital platform.');
+          return false;
+        }
+        return true;
+      case 7:
+        if (state.supplyChain == null) {
+          _setError('Please describe your supply chain.');
+          return false;
+        }
+        return true;
+      case 8:
+        if (state.weeklyCommitment == null) {
+          _setError('Please select your weekly commitment.');
+          return false;
+        }
+        return true;
+      case 9:
+        if (state.budgetPlan == null) {
+          _setError('Please select a budget plan.');
+          return false;
+        }
+        return true;
+      default:
+        return true;
+    }
+  }
 
+  void _setError(String message) {
+    state = state.copyWith(errorMessage: message);
+  }
+
+  void clearError() {
+    if (state.errorMessage.isNotEmpty) {
+      state = state.copyWith(errorMessage: '');
+    }
+  }
   /// Advance to next question, or mark complete if on last step.
-  void nextStep() {
+void nextStep() {
+    // 1. Block navigation if validation fails
+    if (!_validateCurrentStep()) return;
+
+    // 2. Clear any existing errors if valid
+    clearError();
+
+    // 3. Existing logic remains the same
     if (state.currentStep < SurveyModel.totalSteps - 1) {
       state = state.copyWith(currentStep: state.currentStep + 1);
     } else {
-      state = state.copyWith(isComplete: true);
+      _submitToSupabase();
+    }
+  }
+
+  Future<void> _submitToSupabase() async {
+    // Prevent multiple submissions
+    if (state.isSubmitting) return;
+
+    state = state.copyWith(isSubmitting: true);
+
+    try {
+      // 1. Prepare the data payload
+      final data = state.toMap(readinessScore);
+
+      // 2. Insert into Supabase
+      await Supabase.instance.client
+          .from('survey_responses')
+          .insert(data);
+
+      // 3. Mark complete to trigger UI navigation
+      state = state.copyWith(
+        isComplete: true,
+        isSubmitting: false,
+      );
+    } catch (e) {
+      // Revert loading state if it fails
+      state = state.copyWith(
+        isSubmitting: false,
+        errorMessage: 'Failed to save to database. Check your connection or RLS policies.',
+      );
+      print('Error saving to Supabase: $e'); 
     }
   }
 
   /// Go back one step (minimum step 0).
   void prevStep() {
     if (state.currentStep > 0) {
+      clearError(); // Clear error when going back
       state = state.copyWith(currentStep: state.currentStep - 1);
     }
   }
 
   // ── Q1: Business Identity ───────────────────────────────────────────────────
 
-  void updateBusinessName(String value) =>
-      state = state.copyWith(businessName: value);
+  void updateBusinessName(String value) {
+    state = state.copyWith(businessName: value);
+    clearError();
+  }
 
-  void updateSector(String value) =>
-      state = state.copyWith(sector: value);
+void updateSector(String value) {
+    state = state.copyWith(sector: value);
+    clearError();
+  }
 
   // ── Q2: Location ─────────────────────────────────────────────────────────────
 
-  void updateLocation(String value) =>
-      state = state.copyWith(location: value);
+  void updateLocation(String value) {
+    state = state.copyWith(location: value);
+    clearError();
+  }
 
   // ── Q3: Sales Tracking ───────────────────────────────────────────────────────
 
-  void updateSalesTracking(SalesTracking value) =>
-      state = state.copyWith(salesTracking: value);
+  void updateSalesTracking(SalesTracking value) {
+    state = state.copyWith(salesTracking: value);
+    clearError();
+  }
 
   // ── Q4: Team Size ────────────────────────────────────────────────────────────
 
@@ -57,8 +176,10 @@ class SurveyController extends StateNotifier<SurveyModel> {
 
   // ── Q5: Primary Goal ─────────────────────────────────────────────────────────
 
-  void updatePrimaryGoal(PrimaryGoal value) =>
-      state = state.copyWith(primaryGoal: value);
+  void updatePrimaryGoal(PrimaryGoal value) {
+    state = state.copyWith(primaryGoal: value);
+    clearError();
+  }
 
   // ── Q6: Financial Audit ──────────────────────────────────────────────────────
 
@@ -75,22 +196,29 @@ class SurveyController extends StateNotifier<SurveyModel> {
         ? current.remove(platform)
         : current.add(platform);
     state = state.copyWith(digitalPresence: current);
+    clearError();
   }
 
   // ── Q8: Supply Chain ─────────────────────────────────────────────────────────
 
-  void updateSupplyChain(SupplyChain value) =>
-      state = state.copyWith(supplyChain: value);
+  void updateSupplyChain(SupplyChain value) {
+    state = state.copyWith(supplyChain: value);
+    clearError();
+  }
 
   // ── Q9: Weekly Commitment ────────────────────────────────────────────────────
 
-  void updateWeeklyCommitment(WeeklyCommitment value) =>
-      state = state.copyWith(weeklyCommitment: value);
+  void updateWeeklyCommitment(WeeklyCommitment value) {
+    state = state.copyWith(weeklyCommitment: value);
+    clearError();
+  }
 
   // ── Q10: Budget Plan ─────────────────────────────────────────────────────────
 
-  void updateBudgetPlan(BudgetPlan value) =>
-      state = state.copyWith(budgetPlan: value);
+  void updateBudgetPlan(BudgetPlan value) {
+    state = state.copyWith(budgetPlan: value);
+    clearError();
+  }
 
   // ── Computed Scores ──────────────────────────────────────────────────────────
 

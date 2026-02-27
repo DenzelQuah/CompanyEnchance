@@ -137,12 +137,20 @@ class SurveyModel {
   final WeeklyCommitment? weeklyCommitment;
   // Q10
   final BudgetPlan? budgetPlan;
+
+  final bool isSubmitting;
+  final String errorMessage;
+  
+
   // Navigation
   final int currentStep;
   final bool isComplete;
+  
 
   const SurveyModel({
+    this.errorMessage = '',
     this.businessName = '',
+    this.isSubmitting = false,
     this.sector = '',
     this.location = '',
     this.salesTracking,
@@ -165,6 +173,8 @@ class SurveyModel {
   bool get showExportInsight => primaryGoal == PrimaryGoal.exportAsean;
 
   SurveyModel copyWith({
+    String? errorMessage,
+    bool? isSubmitting,
     String? businessName,
     String? sector,
     String? location,
@@ -180,6 +190,7 @@ class SurveyModel {
     bool? isComplete,
   }) {
     return SurveyModel(
+      errorMessage: errorMessage ?? this.errorMessage,
       businessName: businessName ?? this.businessName,
       sector: sector ?? this.sector,
       location: location ?? this.location,
@@ -193,8 +204,29 @@ class SurveyModel {
       budgetPlan: budgetPlan ?? this.budgetPlan,
       currentStep: currentStep ?? this.currentStep,
       isComplete: isComplete ?? this.isComplete,
+      isSubmitting: isSubmitting ?? this.isSubmitting,
     );
   }
+  Map<String, dynamic> toMap(int score) {
+    return {
+      'business_name': businessName,
+      'sector': sector,
+      'location': location,
+      // .name extracts the string value of the enum (e.g., 'app', 'excel')
+      'sales_tracking': salesTracking?.name,
+      'team_size': teamSize,
+      'primary_goal': primaryGoal?.name,
+      'has_audited_statements': hasAuditedStatements,
+      'digital_presence': digitalPresence, 
+      'supply_chain': supplyChain?.name,
+      'weekly_commitment': weeklyCommitment?.name,
+      'budget_plan': budgetPlan?.name,
+      'readiness_score': score,
+    };
+  }
+
+  
+
 
   @override
   String toString() => 'SurveyModel(step: $currentStep, goal: $primaryGoal, '

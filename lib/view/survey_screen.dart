@@ -118,28 +118,78 @@ class _SurveyNavBar extends StatelessWidget {
     final isLast = state.currentStep == SurveyModel.totalSteps - 1;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min, 
         children: [
-          if (state.currentStep > 0)
-            OutlinedButton(
-              onPressed: ctrl.prevStep,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                side: const BorderSide(color: AppTheme.border, width: 2),
-                shape: RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+
+
+          //Error Message Display
+            if (state.errorMessage.isNotEmpty) ...[
+            Container(
+              width: double.infinity, // 1. Force container to take full width
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEEBC8), 
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFBD38D)),
               ),
-              child: const Text('← Back', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
-            ),
-          if (state.currentStep > 0) const SizedBox(width: 12),
-          Expanded(
-            child: SizedBox(
-              height: 50,
-              child: ElevatedButton(
-                onPressed: ctrl.nextStep,
-                child: Text(isLast ? 'Build My Roadmap 🚀' : 'Continue →'),
+              child: Row(
+                // 2. Removed centering, let it naturally align left
+                children: [
+                  const Icon(Icons.error_outline, color: Color(0xFFC53030), size: 20),
+                  const SizedBox(width: 10),
+                  Expanded( // 3. Use Expanded instead of Flexible
+                    child: Text(
+                      state.errorMessage,
+                      style: const TextStyle(
+                        color: Color(0xFFC53030),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
+          ],
+
+
+          // Hide back button during submission
+         Row(
+            children: [
+              if (state.currentStep > 0 && !state.isSubmitting)
+                OutlinedButton(
+                  onPressed: ctrl.prevStep,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    side: const BorderSide(color: AppTheme.border, width: 2),
+                    shape: RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                  ),
+                  child: const Text('← Back', style: TextStyle(fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+                ),
+              if (state.currentStep > 0 && !state.isSubmitting) const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: state.isSubmitting ? null : ctrl.nextStep,
+                    child: state.isSubmitting
+                        ? const SizedBox(
+                            height: 24,
+                            width: 24,
+                            child: CircularProgressIndicator(
+                              color: Colors.white, 
+                              strokeWidth: 2.5,
+                            ),
+                          )
+                        : Text(isLast ? 'Build My Roadmap 🚀' : 'Continue →'),
+                  ),
+                ),
+              ),
+            ],
           ),
+          
         ],
       ),
     );
