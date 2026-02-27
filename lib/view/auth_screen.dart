@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controller/auth_controller.dart';
 import '../model/app_theme.dart';
 import 'survey_screen.dart';
+import 'main_shell.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -36,10 +37,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     super.dispose();
   }
 
-  void _navigateToSurvey() {
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const SurveyScreen()),
-    );
+  void _handleNavigation(bool hasData) {
+    if (hasData) {
+      // 🚀 User has data -> Go to Dashboard
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainShell()),
+      );
+    } else {
+      // 📋 New User -> Go to Survey
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const SurveyScreen()),
+      );
+    }
   }
 
   @override
@@ -49,7 +58,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
     // Navigate on success
     ref.listen(authControllerProvider, (_, next) {
-      if (next.isSuccess) _navigateToSurvey();
+      if (next.isSuccess) _handleNavigation(next.hasCompletedSurvey);
       if (next.hasError) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(next.errorMessage ?? 'Error'), backgroundColor: AppTheme.error),

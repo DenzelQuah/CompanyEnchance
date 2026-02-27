@@ -18,33 +18,42 @@ class SurveyController extends StateNotifier<SurveyModel> {
 
   /// Checks local storage for a session ID. If found, fetches data from Supabase.
   /// If not found, generates a new unique ID for the session.
-  Future<void> _loadDraft() async {
+    Future<void> _loadDraft() async {
     final prefs = await SharedPreferences.getInstance();
-    String? savedId = prefs.getString('survey_session_id');
-
-    if (savedId != null) {
-      // 1. We remember them! Fetch their saved data from Supabase.
-      try {
-        final data = await Supabase.instance.client
-            .from('survey_responses')
-            .select()
-            .eq('id', savedId)
-            .maybeSingle(); // Gets 1 row, or null if deleted
-
-        if (data != null) {
-          // Hydrate the state so they pick up exactly where they left off
-          state = SurveyModel.fromMap(data, savedId);
-          return;
-        }
-      } catch (e) {
-        print('Error fetching draft from Supabase: $e');
-      }
-    }
     
-    // 2. If no saved ID (or fetch failed), generate a fresh new session ID
-    final newId = const Uuid().v4();
-    await prefs.setString('survey_session_id', newId);
-    state = state.copyWith(uniqueId: newId);
+    // 1. Check if user is ALREADY logged in via Supabase Auth
+    final user = Supabase.instance.client.auth.currentUser;
+    
+    // 2. Decide which ID to use
+    String currentId;
+    if (user != null) {
+      currentId = user.id; // ✅ Use their Real Account ID if logged in
+    } else {
+      // If no user, check local storage for an existing Guest ID or create one
+      currentId = prefs.getString('survey_session_id') ?? const Uuid().v4();
+    }
+
+    // 3. Save it locally so the app remembers who we are working with
+    await prefs.setString('survey_session_id', currentId);
+    
+    // 4. Update state with the correct ID immediately
+    state = state.copyWith(uniqueId: currentId);
+
+    // 5. Fetch existing data from Supabase using this ID
+    try {
+      final data = await Supabase.instance.client
+          .from('survey_responses')
+          .select()
+          .eq('id', currentId)
+          .maybeSingle(); // Gets 1 row, or null if empty
+
+      if (data != null) {
+        // Hydrate the state so they pick up exactly where they left off
+        state = SurveyModel.fromMap(data, currentId);
+      }
+    } catch (e) {
+      print('Error fetching draft from Supabase: $e');
+    }
   }
 
   /// Silently upserts the current survey state to Supabase in the background
@@ -173,8 +182,8 @@ class SurveyController extends StateNotifier<SurveyModel> {
       await _autoSaveToDatabase(); 
 
       // 2. Clear the local session ID so they start fresh next time they open the app
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('survey_session_id');
+      //final prefs = await SharedPreferences.getInstance();
+      //await prefs.remove('survey_session_id');
 
       // 3. Mark complete to trigger UI navigation
       state = state.copyWith(
@@ -187,7 +196,7 @@ class SurveyController extends StateNotifier<SurveyModel> {
         isSubmitting: false,
         errorMessage: 'Failed to save to database. Check your connection or RLS policies.',
       );
-      print('Error saving to Supabase: $e'); 
+      print('Error saving to Supabase: $e');
     }
   }
 
