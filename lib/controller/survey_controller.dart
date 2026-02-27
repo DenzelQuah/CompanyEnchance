@@ -2,15 +2,69 @@
 // Riverpod StateNotifier — owns all survey navigation & response state.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../../model/survey_model.dart';
 import '../../model/dashboard_model.dart';
 
 class SurveyController extends StateNotifier<SurveyModel> {
-  SurveyController() : super(const SurveyModel());
+  // Call _loadDraft() the moment the controller is created
+  SurveyController() : super(const SurveyModel()) {
+    _loadDraft();
+  }
 
-  // ── Navigation ──────────────────────────────────────────────────────────────
-/// Checks if the current step has the required data before advancing.
+// ── Auto-Save & Loading Logic ───────────────────────────────────────────────
+
+  /// Checks local storage for a session ID. If found, fetches data from Supabase.
+  /// If not found, generates a new unique ID for the session.
+  Future<void> _loadDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    String? savedId = prefs.getString('survey_session_id');
+
+    if (savedId != null) {
+      // 1. We remember them! Fetch their saved data from Supabase.
+      try {
+        final data = await Supabase.instance.client
+            .from('survey_responses')
+            .select()
+            .eq('id', savedId)
+            .maybeSingle(); // Gets 1 row, or null if deleted
+
+        if (data != null) {
+          // Hydrate the state so they pick up exactly where they left off
+          state = SurveyModel.fromMap(data, savedId);
+          return;
+        }
+      } catch (e) {
+        print('Error fetching draft from Supabase: $e');
+      }
+    }
+    
+    // 2. If no saved ID (or fetch failed), generate a fresh new session ID
+    final newId = const Uuid().v4();
+    await prefs.setString('survey_session_id', newId);
+    state = state.copyWith(uniqueId: newId);
+  }
+
+  /// Silently upserts the current survey state to Supabase in the background
+  Future<void> _autoSaveToDatabase() async {
+    if (state.uniqueId.isEmpty) return; // Failsafe
+
+    try {
+      final data = state.toMap(readinessScore);
+      // UPSERT: Updates the row if ID exists, inserts new if it doesn't!
+      await Supabase.instance.client
+          .from('survey_responses')
+          .upsert(data);
+    } catch (e) {
+      print('Background auto-save failed: $e');
+    }
+  }
+
+  // ── Validation ──────────────────────────────────────────────────────────────
+  
+  /// Checks if the current step has the required data before advancing.
   bool _validateCurrentStep() {
     switch (state.currentStep) {
       case 0:
@@ -83,17 +137,26 @@ class SurveyController extends StateNotifier<SurveyModel> {
       state = state.copyWith(errorMessage: '');
     }
   }
+
+
+
+  // ── Navigation ──────────────────────────────────────────────────────────────
+
   /// Advance to next question, or mark complete if on last step.
-void nextStep() {
+  void nextStep() {
     // 1. Block navigation if validation fails
     if (!_validateCurrentStep()) return;
 
     // 2. Clear any existing errors if valid
     clearError();
 
-    // 3. Existing logic remains the same
+    // 3. Move forward or submit
     if (state.currentStep < SurveyModel.totalSteps - 1) {
       state = state.copyWith(currentStep: state.currentStep + 1);
+      
+      // 🔥 MAGIC HAPPENS HERE: Auto-save the moment they go to the next question
+      _autoSaveToDatabase(); 
+      
     } else {
       _submitToSupabase();
     }
@@ -106,13 +169,12 @@ void nextStep() {
     state = state.copyWith(isSubmitting: true);
 
     try {
-      // 1. Prepare the data payload
-      final data = state.toMap(readinessScore);
+      // 1. One final upsert to ensure everything is perfect
+      await _autoSaveToDatabase(); 
 
-      // 2. Insert into Supabase
-      await Supabase.instance.client
-          .from('survey_responses')
-          .insert(data);
+      // 2. Clear the local session ID so they start fresh next time they open the app
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('survey_session_id');
 
       // 3. Mark complete to trigger UI navigation
       state = state.copyWith(
@@ -130,7 +192,7 @@ void nextStep() {
   }
 
   /// Go back one step (minimum step 0).
-  void prevStep() {
+ void prevStep() {
     if (state.currentStep > 0) {
       clearError(); // Clear error when going back
       state = state.copyWith(currentStep: state.currentStep - 1);
@@ -304,3 +366,4 @@ final surveyControllerProvider =
     StateNotifierProvider<SurveyController, SurveyModel>(
   (_) => SurveyController(),
 );
+

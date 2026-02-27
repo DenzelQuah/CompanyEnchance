@@ -145,9 +145,11 @@ class SurveyModel {
   // Navigation
   final int currentStep;
   final bool isComplete;
+  final String uniqueId;
   
 
   const SurveyModel({
+    this.uniqueId = '',
     this.errorMessage = '',
     this.businessName = '',
     this.isSubmitting = false,
@@ -173,6 +175,7 @@ class SurveyModel {
   bool get showExportInsight => primaryGoal == PrimaryGoal.exportAsean;
 
   SurveyModel copyWith({
+    String? uniqueId,
     String? errorMessage,
     bool? isSubmitting,
     String? businessName,
@@ -190,6 +193,7 @@ class SurveyModel {
     bool? isComplete,
   }) {
     return SurveyModel(
+      uniqueId: uniqueId ?? this.uniqueId,
       errorMessage: errorMessage ?? this.errorMessage,
       businessName: businessName ?? this.businessName,
       sector: sector ?? this.sector,
@@ -209,6 +213,7 @@ class SurveyModel {
   }
   Map<String, dynamic> toMap(int score) {
     return {
+      'id': uniqueId,
       'business_name': businessName,
       'sector': sector,
       'location': location,
@@ -223,6 +228,26 @@ class SurveyModel {
       'budget_plan': budgetPlan?.name,
       'readiness_score': score,
     };
+  }
+  
+  // Create a SurveyModel from a Firestore document map:
+  //Reason: to handle cases where fields did not answers will able to detect back the latest results answered by user and show the result page without having to retake the survey again
+  factory SurveyModel.fromMap(Map<String, dynamic> map, String id) {
+    return SurveyModel(
+      uniqueId: id,
+      businessName: map['business_name'] ?? '',
+      sector: map['sector'] ?? '',
+      location: map['location'] ?? '',
+      salesTracking: SalesTracking.values.asNameMap()[map['sales_tracking'] ?? ''],
+      teamSize: map['team_size'] ?? 5,
+      primaryGoal: PrimaryGoal.values.asNameMap()[map['primary_goal'] ?? ''],
+      hasAuditedStatements: map['has_audited_statements'] ?? false,
+      digitalPresence: List<String>.from(map['digital_presence'] ?? []),
+      supplyChain: SupplyChain.values.asNameMap()[map['supply_chain'] ?? ''],
+      weeklyCommitment: WeeklyCommitment.values.asNameMap()[map['weekly_commitment'] ?? ''],
+      budgetPlan: BudgetPlan.values.asNameMap()[map['budget_plan'] ?? ''],
+      currentStep: map['current_step'] ?? 0,
+    );
   }
 
   

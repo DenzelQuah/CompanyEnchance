@@ -156,7 +156,7 @@ class _SurveyNavBar extends StatelessWidget {
 
 
           // Hide back button during submission
-         Row(
+          Row(
             children: [
               if (state.currentStep > 0 && !state.isSubmitting)
                 OutlinedButton(
