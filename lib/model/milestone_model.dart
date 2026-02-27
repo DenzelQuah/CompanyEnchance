@@ -47,118 +47,85 @@ class MilestoneGenerator {
     final List<MilestoneModel> milestones = [];
     int week = 1;
 
-    // ── 1. BUSINESS & OPERATIONS ────────────────────────────────
+    milestones.add(
+      MilestoneModel(
+        id: 'm1',
+        title: 'Business Diagnostic Complete',
+        description: 'Profile assessed for ${survey.businessName}. Score: 62/100.',
+        weekLabel: 'Week 0',
+        xpReward: 100,
+        status: MilestoneStatus.done,
+        emoji: '📋',
+      ),
+    );
+
+    // 2. OPERATIONS: Tailored to Sales Tracking
     if (survey.salesTracking == SalesTracking.paper) {
       milestones.add(MilestoneModel(
-        id: 'm_bus_1',
-        title: 'Digitize Operations',
-        description: 'Transition from paper records to a digital POS. Essential for tracking daily revenue and reducing manual errors.',
+        id: 'm_ops',
+        title: 'Digitize Sales Records',
+        description: 'Move from paper to a digital POS. Essential for loan approvals.',
         weekLabel: 'Week ${week++}',
-        xpReward: 100,
-        status: MilestoneStatus.locked,
+        xpReward: 150,
+        status: MilestoneStatus.current, // Start here!
         emoji: '📱',
       ));
     } else {
       milestones.add(MilestoneModel(
-        id: 'm_bus_1',
-        title: 'Cloud Analytics & Optimization',
-        description: 'Leverage your ${survey.salesTracking?.label} data to generate automated growth analytics and identify top-selling products in the ${survey.sector} sector.',
+        id: 'm_ops',
+        title: 'Optimize Data Analytics',
+        description: 'Use your ${survey.salesTracking?.label} data to find top-selling items.',
         weekLabel: 'Week ${week++}',
-        xpReward: 150,
-        status: MilestoneStatus.locked,
+        xpReward: 100,
+        status: MilestoneStatus.current,
         emoji: '📊',
       ));
     }
 
-    // ── 2. AUDITING & FINANCIAL ─────────────────────────────────
+    // 3. FINANCE: Tailored to Audited Statements
     if (!survey.hasAuditedStatements) {
       milestones.add(MilestoneModel(
-        id: 'm_fin_1',
-        title: 'Bookkeeping & Digitization',
-        description: 'Upload 3 months of bank statements to build a solid credit profile, acting as a stepping stone towards formal audited statements.',
+        id: 'm_fin',
+        title: 'Prepare Management Accounts',
+        description: 'Upload 3 months of bank statements to build credit history.',
         weekLabel: 'Week ${week++}',
         xpReward: 120,
         status: MilestoneStatus.locked,
-        emoji: '🧾',
+        emoji: '💰',
       ));
     } else {
       milestones.add(MilestoneModel(
-        id: 'm_fin_1',
-        title: 'Financial Health Review',
-        description: 'Use your audited statements to run an automated financial health check, preparing your corporate profile for upcoming grant applications.',
+        id: 'm_fin',
+        title: 'Apply for SME Grant',
+        description: 'Use your audited statements to apply for the Digital Grant.',
         weekLabel: 'Week ${week++}',
-        xpReward: 150,
+        xpReward: 200,
         status: MilestoneStatus.locked,
-        emoji: '📈',
+        emoji: '🏦',
       ));
     }
 
-    // ── 3. MARKETING (AI Video Generator) ───────────────────────
-    // Check where they are active. If empty, default to "your social media"
-    final platforms = survey.digitalPresence.where((p) => p != 'None').toList();
-    final targetPlatforms = platforms.isNotEmpty ? platforms.join(' & ') : 'your social media';
-    
-    milestones.add(MilestoneModel(
-      id: 'm_mkt_1',
-      title: 'AI Video Marketing Campaign',
-      description: 'Use our AI Video Generator to automatically craft a tailored promo video for your business, and share it to $targetPlatforms in one click.',
-      weekLabel: 'Week ${week++}',
-      xpReward: 250,
-      status: MilestoneStatus.locked,
-      emoji: '🎬',
-    ));
-
-    // ── 4. LOANS & GRANTS (Comparison Matrix) ───────────────────
-    // Tailor the loan suggestions based on their budget goals
-    String loanFocus = survey.budgetPlan == BudgetPlan.zeroDollar 
-        ? 'zero-equity grants (e.g., SME Corp MDG, MDEC)' 
-        : 'SME financing (e.g., SJPP Guarantees, TEKUN, SME Bank)';
-
-    milestones.add(MilestoneModel(
-      id: 'm_loan_1',
-      title: 'Personalized Loan & Grant Matrix',
-      description: 'Access a custom comparison table of Malaysian financial aids focusing on $loanFocus, tailored precisely to your team size of ${survey.teamSize}.',
-      weekLabel: 'Week ${week++}',
-      xpReward: 300,
-      status: MilestoneStatus.locked,
-      emoji: '🏦',
-    ));
-
-    // ── 5. EXPORT / ULTIMATE GOAL ───────────────────────────────
+    // 4. GOAL: Tailored to Primary Goal
     if (survey.primaryGoal == PrimaryGoal.exportAsean) {
       milestones.add(MilestoneModel(
-        id: 'm_exp_1',
-        title: 'ASEAN Export Readiness Assessment',
-        description: 'Take the MATRADE Export Readiness Assessment Tool (ERAT) and prepare documentation for the Market Development Grant (MDG) for cross-border sales.',
+        id: 'm_goal',
+        title: 'MATRADE Export Registration',
+        description: 'Register for the Market Development Grant (MDG).',
         weekLabel: 'Week ${week++}',
-        xpReward: 400,
+        xpReward: 300,
         status: MilestoneStatus.locked,
         emoji: '🌏',
       ));
     } else {
       milestones.add(MilestoneModel(
-        id: 'm_gro_1',
-        title: 'Scale & Dominate Local Market',
-        description: 'Execute your business growth plan using your newly acquired capital and AI-driven marketing to capture market share in Malaysia.',
+        id: 'm_goal',
+        title: 'Expand Local Market',
+        description: 'Launch a marketing campaign to increase local footfall.',
         weekLabel: 'Week ${week++}',
-        xpReward: 350,
+        xpReward: 250,
         status: MilestoneStatus.locked,
-        emoji: '🏆',
+        emoji: '🚀',
       ));
-    }
-
-    // ── AUTO-UNLOCK THE FIRST TASK ──────────────────────────────
-    // The user must have one active task. This finds the first "locked" task and makes it "current"
-    if (milestones.isNotEmpty) {
-      milestones[0] = MilestoneModel(
-        id: milestones[0].id,
-        title: milestones[0].title,
-        description: milestones[0].description,
-        weekLabel: milestones[0].weekLabel,
-        xpReward: milestones[0].xpReward,
-        status: MilestoneStatus.current, 
-        emoji: milestones[0].emoji,
-      );
     }
 
     return milestones;
