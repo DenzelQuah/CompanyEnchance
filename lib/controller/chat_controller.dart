@@ -1,61 +1,129 @@
-// lib/controller/chat_controller.dart
-// Manages chatbot message state and AI reply logic.
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../model/chat_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class ChatController extends StateNotifier<List<ChatMessage>> {
-  ChatController() : super(ChatMessage.initialMessages);
+import '../model/chat_model.dart';
+import '../model/chat_state.dart';
+import '../services/chat_api_service.dart';
 
-  void sendMessage(String text) {
-    if (text.trim().isEmpty) return;
-    state = [...state, ChatMessage(text: text.trim(), isUser: true)];
-    // Simulate async AI reply
-    Future.delayed(const Duration(milliseconds: 650), () {
-      state = [...state, ChatMessage(text: _generateReply(text), isUser: false)];
-    });
+class ChatController extends StateNotifier<ChatState> {
+  ChatController()
+    : _supabase = Supabase.instance.client,
+      _chatApi = ChatApiService(),
+      super(ChatState.initial()) {
+    _bootstrapChat();
   }
 
-  String _generateReply(String input) {
-    final q = input.toLowerCase();
-    if (q.contains('fb') || q.contains('facebook')) {
-      return '📣 3 quick wins for Facebook:\n\n'
-          '1. Post at 7–9pm on weekdays — peak Malaysian time\n'
-          '2. Use Reels — 3× more organic reach than static posts\n'
-          '3. Enable the WhatsApp chat button on your business page\n\n'
-          'Want me to build a 2-week content calendar for you?';
+  final SupabaseClient _supabase;
+  final ChatApiService _chatApi;
+
+  Future<void> _bootstrapChat() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      final session = await _supabase
+          .from('chat_sessions')
+          .select('id')
+          .eq('user_id', userId)
+          .order('updated_at', ascending: false)
+          .limit(1)
+          .maybeSingle();
+
+      final sessionId = session?['id'] as String?;
+      if (sessionId == null) return;
+
+      final rows = await _supabase
+          .from('chat_messages')
+          .select('role,content,created_at')
+          .eq('session_id', sessionId)
+          .order('created_at', ascending: true);
+
+      final dbMessages = (rows as List)
+          .map(
+            (row) => ChatMessage(
+              text: row['content'] as String? ?? '',
+              isUser: row['role'] == 'user',
+            ),
+          )
+          .where((m) => m.text.trim().isNotEmpty)
+          .toList();
+
+      if (dbMessages.isNotEmpty) {
+        state = state.copyWith(messages: dbMessages, sessionId: sessionId);
+      } else {
+        state = state.copyWith(sessionId: sessionId);
+      }
+    } catch (_) {
+      // Keep local chat UI available even if history load fails.
     }
-    if (q.contains('export') || q.contains('asean')) {
-      return '🌍 You\'re 68% export-ready! Your next 3 steps:\n\n'
-          '1. Register with MATRADE (free for Malaysian SMEs)\n'
-          '2. Get your HS code for customs classification\n'
-          '3. Open a multi-currency account (Wise or Maybank)\n\n'
-          'Shall I add these to your roadmap?';
-    }
-    if (q.contains('fund') || q.contains('grant') || q.contains('money')) {
-      return '💰 Based on your profile, you qualify for:\n\n'
-          '• SME Corp Malaysia — Up to RM 50,000\n'
-          '• BPMB Micro Financing — 4.5% p.a.\n'
-          '• Cradle Fund CIP300 — For tech-enabled businesses\n\n'
-          'Upload your 3-month bank statements this week to unlock all three! 📄';
-    }
-    if (q.contains('ops') || q.contains('operation')) {
-      return '⚙️ Quick operational wins you can do today:\n\n'
-          '• Switch to Wave Accounting (free POS + invoicing)\n'
-          '• Use Canva for all marketing content — saves ~3h/week\n'
-          '• Set up Shopee auto-reply via WhatsApp Business API\n\n'
-          'This could free up ~5 hours every week!';
-    }
-    return '💡 Great question! I\'m cross-referencing your business profile to '
-        'generate a personalised recommendation. In the meantime, your '
-        'highest-impact action today is completing the financial records '
-        'milestone — it unlocks the most opportunities. 🎯';
   }
 
-  void clearMessages() => state = ChatMessage.initialMessages;
+  Future<void> sendMessage(String text) async {
+    final input = text.trim();
+    if (input.isEmpty || state.isProcessing) return;
+
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) {
+      _appendAssistant('Please sign in to use AI roadmap chat.');
+      return;
+    }
+
+    _appendMessage(ChatMessage(text: input, isUser: true));
+    state = state.copyWith(isProcessing: true);
+
+    try {
+      final result = await _chatApi.sendMessage(
+        userId: userId,
+        message: input,
+        sessionId: state.sessionId,
+      );
+
+      final answer = result.answer.isEmpty
+          ? 'No response received from the chat service.'
+          : result.answer;
+
+      _appendAssistant(
+        answer,
+        sourceDocuments: result.sourceDocuments
+            .map(
+              (doc) => ChatSourceDocument(
+                content: (doc['content'] as String? ?? '').trim(),
+                metadata: Map<String, dynamic>.from(
+                  doc['metadata'] as Map? ?? const {},
+                ),
+              ),
+            )
+            .where((doc) => doc.content.isNotEmpty)
+            .toList(),
+      );
+      state = state.copyWith(sessionId: result.sessionId);
+    } catch (_) {
+      _appendAssistant(
+        'Unable to reach the AI backend. Check CHAT_API_URL and backend server status.',
+      );
+    } finally {
+      state = state.copyWith(isProcessing: false);
+    }
+  }
+
+  void _appendAssistant(
+    String text, {
+    List<ChatSourceDocument> sourceDocuments = const [],
+  }) {
+    _appendMessage(
+      ChatMessage(text: text, isUser: false, sourceDocuments: sourceDocuments),
+    );
+  }
+
+  void _appendMessage(ChatMessage message) {
+    state = state.copyWith(messages: [...state.messages, message]);
+  }
+
+  void clearMessages() {
+    state = ChatState.initial().copyWith(sessionId: state.sessionId);
+  }
 }
 
-final chatControllerProvider =
-    StateNotifierProvider<ChatController, List<ChatMessage>>(
+final chatControllerProvider = StateNotifierProvider<ChatController, ChatState>(
   (_) => ChatController(),
 );

@@ -28,7 +28,8 @@ class RoadmapScreen extends ConsumerWidget {
                     (_, i) => _MilestoneRow(
                       milestone: state.milestones[i],
                       isLast: i == state.milestones.length - 1,
-                      onComplete: () => ref.read(roadmapControllerProvider.notifier)
+                      onComplete: () => ref
+                          .read(roadmapControllerProvider.notifier)
                           .completeMilestone(state.milestones[i].id),
                     ),
                     childCount: state.milestones.length,
@@ -44,7 +45,9 @@ class RoadmapScreen extends ConsumerWidget {
             child: FloatingActionButton(
               onPressed: () => _showChatSheet(context),
               backgroundColor: AppTheme.blue,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
               elevation: 8,
               child: const Text('💬', style: TextStyle(fontSize: 22)),
             ),
@@ -67,9 +70,11 @@ class RoadmapScreen extends ConsumerWidget {
           child: Stack(
             children: [
               Positioned(
-                right: -60, top: -60,
+                right: -60,
+                top: -60,
                 child: Container(
-                  width: 220, height: 220,
+                  width: 220,
+                  height: 220,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white.withOpacity(0.07),
@@ -82,11 +87,20 @@ class RoadmapScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    const Text('🗺️ Your Growth Journey',
-                        style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.3)),
+                    const Text(
+                      '🗺️ Your Growth Journey',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    const Text("Ahmad's Digital & Export Readiness Path",
-                        style: TextStyle(color: Colors.white70, fontSize: 13)),
+                    const Text(
+                      "Ahmad's Digital & Export Readiness Path",
+                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
                     const SizedBox(height: 12),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(4),
@@ -100,7 +114,10 @@ class RoadmapScreen extends ConsumerWidget {
                     const SizedBox(height: 6),
                     Text(
                       '⭐ ${state.totalXp} / 1000 XP — Level ${state.level}: ${state.levelLabel}',
-                      style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
                     ),
                   ],
                 ),
@@ -148,7 +165,9 @@ class _MilestoneRow extends StatelessWidget {
                 Expanded(
                   child: Container(
                     width: 2,
-                    color: milestone.status == MilestoneStatus.done ? AppTheme.green : AppTheme.border,
+                    color: milestone.status == MilestoneStatus.done
+                        ? AppTheme.green
+                        : AppTheme.border,
                   ),
                 ),
             ],
@@ -157,7 +176,10 @@ class _MilestoneRow extends StatelessWidget {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(bottom: 16),
-              child: _MilestoneCard(milestone: milestone, onComplete: onComplete),
+              child: _MilestoneCard(
+                milestone: milestone,
+                onComplete: onComplete,
+              ),
             ),
           ),
         ],
@@ -184,10 +206,14 @@ class _MilestoneNodeState extends State<_MilestoneNode>
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(seconds: 2));
-    _ring = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _pulse, curve: Curves.easeOut),
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
     );
+    _ring = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeOut));
     if (widget.status == MilestoneStatus.current) _pulse.repeat();
   }
 
@@ -209,24 +235,33 @@ class _MilestoneNodeState extends State<_MilestoneNode>
         break;
       case MilestoneStatus.current:
         bg = AppTheme.blue;
-        icon = const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22);
+        icon = const Icon(
+          Icons.play_arrow_rounded,
+          color: Colors.white,
+          size: 22,
+        );
         break;
       case MilestoneStatus.locked:
         bg = const Color(0xFFD1D5DB);
-        icon = const Icon(Icons.lock_rounded, color: Color(0xFF9CA3AF), size: 18);
+        icon = const Icon(
+          Icons.lock_rounded,
+          color: Color(0xFF9CA3AF),
+          size: 18,
+        );
         break;
     }
 
     final node = Container(
-      width: 48, height: 48,
+      width: 48,
+      height: 48,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: bg,
         boxShadow: widget.status == MilestoneStatus.done
             ? AppTheme.greenGlow(0.35)
             : widget.status == MilestoneStatus.current
-                ? AppTheme.blueGlow(0.4)
-                : [],
+            ? AppTheme.blueGlow(0.4)
+            : [],
       ),
       child: Center(child: icon),
     );
@@ -268,16 +303,27 @@ class _MilestoneCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCurrent = milestone.status == MilestoneStatus.current;
-    final isLocked  = milestone.status == MilestoneStatus.locked;
+    final isLocked = milestone.status == MilestoneStatus.locked;
 
-    Color badgeBg; Color badgeFg; String badgeLabel;
+    Color badgeBg;
+    Color badgeFg;
+    String badgeLabel;
     switch (milestone.status) {
       case MilestoneStatus.done:
-        badgeBg = AppTheme.greenPale; badgeFg = AppTheme.green; badgeLabel = 'COMPLETED'; break;
+        badgeBg = AppTheme.greenPale;
+        badgeFg = AppTheme.green;
+        badgeLabel = 'COMPLETED';
+        break;
       case MilestoneStatus.current:
-        badgeBg = AppTheme.bluePale; badgeFg = AppTheme.blue; badgeLabel = 'IN PROGRESS'; break;
+        badgeBg = AppTheme.bluePale;
+        badgeFg = AppTheme.blue;
+        badgeLabel = 'IN PROGRESS';
+        break;
       case MilestoneStatus.locked:
-        badgeBg = const Color(0xFFF3F4F6); badgeFg = const Color(0xFF9CA3AF); badgeLabel = 'LOCKED'; break;
+        badgeBg = const Color(0xFFF3F4F6);
+        badgeFg = const Color(0xFF9CA3AF);
+        badgeLabel = 'LOCKED';
+        break;
     }
 
     return Opacity(
@@ -295,30 +341,75 @@ class _MilestoneCard extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(20)),
-              child: Text(badgeLabel, style: TextStyle(color: badgeFg, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              decoration: BoxDecoration(
+                color: badgeBg,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                badgeLabel,
+                style: TextStyle(
+                  color: badgeFg,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.5,
+                ),
+              ),
             ),
             const SizedBox(height: 8),
-            Text('${milestone.emoji}  ${milestone.title}',
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppTheme.textPrimary)),
+            Text(
+              '${milestone.emoji}  ${milestone.title}',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: AppTheme.textPrimary,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(milestone.description,
-                style: const TextStyle(fontSize: 12, color: AppTheme.textMuted, height: 1.5)),
+            Text(
+              milestone.description,
+              style: const TextStyle(
+                fontSize: 12,
+                color: AppTheme.textMuted,
+                height: 1.5,
+              ),
+            ),
             const SizedBox(height: 10),
             Row(
               children: [
-                Text('📅 ${milestone.weekLabel}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.textMuted)),
+                Text(
+                  '📅 ${milestone.weekLabel}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textMuted,
+                  ),
+                ),
                 const SizedBox(width: 12),
-                Text('⭐ +${milestone.xpReward} XP', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppTheme.gold)),
+                Text(
+                  '⭐ +${milestone.xpReward} XP',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.gold,
+                  ),
+                ),
                 if (isCurrent) ...[
                   const Spacer(),
                   ElevatedButton(
                     onPressed: onComplete,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.blue,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-                      shape: RoundedRectangleBorder(borderRadius: AppTheme.radiusSm),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
+                      textStyle: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: AppTheme.radiusSm,
+                      ),
                     ),
                     child: const Text('Start →'),
                   ),
@@ -342,8 +433,8 @@ class _ChatbotSheet extends ConsumerStatefulWidget {
 }
 
 class _ChatbotSheetState extends ConsumerState<_ChatbotSheet> {
-  final _inputCtrl   = TextEditingController();
-  final _scrollCtrl  = ScrollController();
+  final _inputCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
 
   @override
   void dispose() {
@@ -352,8 +443,8 @@ class _ChatbotSheetState extends ConsumerState<_ChatbotSheet> {
     super.dispose();
   }
 
-  void _send(String text) {
-    ref.read(chatControllerProvider.notifier).sendMessage(text);
+  Future<void> _send(String text) async {
+    await ref.read(chatControllerProvider.notifier).sendMessage(text);
     _inputCtrl.clear();
     Future.delayed(const Duration(milliseconds: 700), _scrollToBottom);
   }
@@ -370,7 +461,8 @@ class _ChatbotSheetState extends ConsumerState<_ChatbotSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final messages = ref.watch(chatControllerProvider);
+    final chatState = ref.watch(chatControllerProvider);
+    final messages = chatState.messages;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
@@ -385,9 +477,13 @@ class _ChatbotSheetState extends ConsumerState<_ChatbotSheet> {
           children: [
             // Handle
             Container(
-              width: 40, height: 4,
+              width: 40,
+              height: 4,
               margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(color: AppTheme.border, borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                color: AppTheme.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             // Header
             Padding(
@@ -395,19 +491,37 @@ class _ChatbotSheetState extends ConsumerState<_ChatbotSheet> {
               child: Row(
                 children: [
                   Container(
-                    width: 36, height: 36,
+                    width: 36,
+                    height: 36,
                     decoration: const BoxDecoration(
-                      gradient: LinearGradient(colors: [AppTheme.blue, Color(0xFF7B1FA2)]),
+                      gradient: LinearGradient(
+                        colors: [AppTheme.blue, Color(0xFF7B1FA2)],
+                      ),
                       borderRadius: BorderRadius.all(Radius.circular(12)),
                     ),
-                    child: const Center(child: Text('🤖', style: TextStyle(fontSize: 16))),
+                    child: const Center(
+                      child: Text('🤖', style: TextStyle(fontSize: 16)),
+                    ),
                   ),
                   const SizedBox(width: 12),
                   const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Nexus AI Coach', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                      Text('● Online', style: TextStyle(color: AppTheme.green, fontSize: 11, fontWeight: FontWeight.w600)),
+                      Text(
+                        'Nexus AI Coach',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
+                      ),
+                      Text(
+                        '● Online',
+                        style: TextStyle(
+                          color: AppTheme.green,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
                   const Spacer(),
@@ -428,10 +542,15 @@ class _ChatbotSheetState extends ConsumerState<_ChatbotSheet> {
                 itemBuilder: (_, i) {
                   final m = messages[i];
                   return Align(
-                    alignment: m.isUser ? Alignment.centerRight : Alignment.centerLeft,
+                    alignment: m.isUser
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
                       constraints: const BoxConstraints(maxWidth: 280),
                       decoration: BoxDecoration(
                         color: m.isUser ? AppTheme.green : AppTheme.background,
@@ -442,14 +561,74 @@ class _ChatbotSheetState extends ConsumerState<_ChatbotSheet> {
                           bottomRight: Radius.circular(m.isUser ? 4 : 18),
                         ),
                       ),
-                      child: Text(
-                        m.text,
-                        style: TextStyle(
-                          color: m.isUser ? Colors.white : AppTheme.textPrimary,
-                          fontSize: 13,
-                          height: 1.5,
-                          fontWeight: FontWeight.w500,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            m.text,
+                            style: TextStyle(
+                              color: m.isUser
+                                  ? Colors.white
+                                  : AppTheme.textPrimary,
+                              fontSize: 13,
+                              height: 1.5,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          if (!m.isUser && m.sourceDocuments.isNotEmpty) ...[
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Sources',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textMuted,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            ...m.sourceDocuments
+                                .take(2)
+                                .map(
+                                  (doc) => Container(
+                                    width: double.infinity,
+                                    margin: const EdgeInsets.only(bottom: 6),
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: AppTheme.border,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          doc.label,
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppTheme.blue,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          doc.content,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            color: AppTheme.textMuted,
+                                            height: 1.4,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                          ],
+                        ],
                       ),
                     ),
                   );
@@ -467,11 +646,19 @@ class _ChatbotSheetState extends ConsumerState<_ChatbotSheet> {
                 itemBuilder: (_, i) {
                   final qr = QuickReply.defaults[i];
                   return ActionChip(
-                    label: Text(qr.label,
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.blue)),
+                    label: Text(
+                      qr.label,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.blue,
+                      ),
+                    ),
                     backgroundColor: AppTheme.bluePale,
                     side: const BorderSide(color: Color(0xFFBBDEFB)),
-                    onPressed: () => _send(qr.query),
+                    onPressed: chatState.isProcessing
+                        ? null
+                        : () => _send(qr.query),
                   );
                 },
               ),
@@ -480,33 +667,64 @@ class _ChatbotSheetState extends ConsumerState<_ChatbotSheet> {
             // Input
             Container(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-              decoration: const BoxDecoration(border: Border(top: BorderSide(color: AppTheme.border))),
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: AppTheme.border)),
+              ),
               child: Row(
                 children: [
                   Expanded(
                     child: TextField(
                       controller: _inputCtrl,
-                      onSubmitted: _send,
+                      onSubmitted: chatState.isProcessing
+                          ? null
+                          : (v) => _send(v),
+                      enabled: !chatState.isProcessing,
                       decoration: InputDecoration(
-                        hintText: 'Ask me anything...',
-                        hintStyle: const TextStyle(fontSize: 13, color: AppTheme.textMuted),
+                        hintText: chatState.isProcessing
+                            ? 'Processing...'
+                            : 'Ask me anything...',
+                        hintStyle: const TextStyle(
+                          fontSize: 13,
+                          color: AppTheme.textMuted,
+                        ),
                         filled: true,
                         fillColor: AppTheme.background,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(20),
                           borderSide: BorderSide.none,
                         ),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
-                    onTap: () => _send(_inputCtrl.text),
+                    onTap: chatState.isProcessing
+                        ? null
+                        : () => _send(_inputCtrl.text),
                     child: Container(
-                      width: 36, height: 36,
-                      decoration: const BoxDecoration(color: AppTheme.blue, shape: BoxShape.circle),
-                      child: const Icon(Icons.send_rounded, color: Colors.white, size: 16),
+                      width: 36,
+                      height: 36,
+                      decoration: const BoxDecoration(
+                        color: AppTheme.blue,
+                        shape: BoxShape.circle,
+                      ),
+                      child: chatState.isProcessing
+                          ? const Padding(
+                              padding: EdgeInsets.all(10),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.send_rounded,
+                              color: Colors.white,
+                              size: 16,
+                            ),
                     ),
                   ),
                 ],
