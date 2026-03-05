@@ -38,6 +38,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   }
 
   void _handleNavigation(bool hasData) {
+    if (!context.mounted) return;
     if (hasData) {
       // 🚀 User has data -> Go to Dashboard
       Navigator.of(context).pushReplacement(
@@ -57,11 +58,29 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     final auth      = ref.read(authControllerProvider.notifier);
 
     // Navigate on success
-    ref.listen(authControllerProvider, (_, next) {
-      if (next.isSuccess) _handleNavigation(next.hasCompletedSurvey);
-      if (next.hasError) {
+      ref.listen(authControllerProvider, (_, next) {
+      // 1. Handle Success
+      if (next.isSuccess) {
+        _handleNavigation(next.hasCompletedSurvey);
+      } 
+      // 2. Handle Verification Needed (Don't navigate, just show message)
+      else if (next.requiresVerification) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(next.errorMessage ?? 'Error'), backgroundColor: AppTheme.error),
+          SnackBar(
+            content: Text(next.errorMessage ?? 'Please verify your email'), 
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+        auth.clearError(); // Reset so snackbar doesn't show repeatedly
+      }
+      // 3. Handle Errors
+      else if (next.hasError) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(next.errorMessage ?? 'Error'), 
+            backgroundColor: AppTheme.error
+          ),
         );
         auth.clearError();
       }
@@ -394,7 +413,6 @@ class _GoogleLogoPainter extends CustomPainter {
     final paths = <Color, String>{
       const Color(0xFF4285F4): 'M20 10.2c0-.6-.1-1.2-.2-1.8H10v3.4h5.6c-.2 1.2-.9 2.2-2 2.9v2.4h3.2c1.9-1.7 3-4.3 3-6.9z',
     };
-    // Simplified: draw a colourful arc
     final paint = Paint()..style = PaintingStyle.fill;
     final r = size.width / 2;
     const colors = [Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFFEA4335)];
@@ -408,10 +426,8 @@ class _GoogleLogoPainter extends CustomPainter {
         paint,
       );
     }
-    // White center
     paint.color = Colors.white;
     canvas.drawCircle(Offset(r, r), r * 0.55, paint);
-    // Blue "G"
     paint.color = const Color(0xFF4285F4);
     canvas.drawRect(Rect.fromLTWH(r, r - 2, r * 0.8, 4), paint);
   }
