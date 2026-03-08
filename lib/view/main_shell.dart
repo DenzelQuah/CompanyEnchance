@@ -1,12 +1,11 @@
-// lib/view/main_shell.dart
-// Bottom navigation shell — hosts Roadmap, Dashboard, and Profile tabs.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../model/app_theme.dart';
-import 'roadmap_screen.dart';
 import 'dashboard_screen.dart';
+import 'financial_screen.dart';
 import 'profile_screen.dart';
+import 'roadmap_screen.dart';
 
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
@@ -19,14 +18,16 @@ class _MainShellState extends ConsumerState<MainShell> {
   int _selectedIndex = 0;
 
   static const _tabs = [
-    _TabItem(icon: '🗺️', label: 'Journey'),
-    _TabItem(icon: '📊', label: 'Analytics'),
-    _TabItem(icon: '👤', label: 'Profile'),
+    _TabItem(label: 'Journey', icon: Icons.route_rounded),
+    _TabItem(label: 'Analytics', icon: Icons.analytics_outlined),
+    _TabItem(label: 'Financial', icon: Icons.account_balance_wallet_outlined),
+    _TabItem(label: 'Profile', icon: Icons.person_outline_rounded),
   ];
 
   static const _screens = [
     RoadmapScreen(),
     DashboardScreen(),
+    FinancialScreen(),
     ProfileScreen(),
   ];
 
@@ -41,7 +42,13 @@ class _MainShellState extends ConsumerState<MainShell> {
         decoration: BoxDecoration(
           color: Colors.white,
           border: const Border(top: BorderSide(color: AppTheme.border)),
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 12, offset: const Offset(0, -4))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 12,
+              offset: const Offset(0, -4),
+            ),
+          ],
         ),
         child: SafeArea(
           top: false,
@@ -60,10 +67,10 @@ class _MainShellState extends ConsumerState<MainShell> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          AnimatedDefaultTextStyle(
-                            duration: const Duration(milliseconds: 200),
-                            style: TextStyle(fontSize: selected ? 22 : 20),
-                            child: Text(_tabs[i].icon),
+                          Icon(
+                            _tabs[i].icon,
+                            size: selected ? 22 : 20,
+                            color: selected ? AppTheme.green : AppTheme.textMuted,
                           ),
                           const SizedBox(height: 3),
                           Text(
@@ -99,7 +106,9 @@ class _MainShellState extends ConsumerState<MainShell> {
 }
 
 class _TabItem {
-  final String icon;
   final String label;
-  const _TabItem({required this.icon, required this.label});
+  final IconData icon;
+
+  const _TabItem({required this.label, required this.icon});
 }
+

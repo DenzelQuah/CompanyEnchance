@@ -8,7 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-enum AuthStatus { idle, loading, success, error }
+enum AuthStatus { idle, loading, success, error, emailVerificationRequired }
 
 class AuthState {
   final AuthStatus status;
@@ -29,6 +29,7 @@ class AuthState {
   bool get isSuccess  => status == AuthStatus.success;
   bool get hasError   => status == AuthStatus.error;
   bool get isSignedIn => status == AuthStatus.success && userEmail != null;
+  bool get requiresVerification => status == AuthStatus.emailVerificationRequired;
   
 
   AuthState copyWith({
@@ -58,36 +59,35 @@ class AuthController extends StateNotifier<AuthState> {
 
   // Checks if the authenticated user already has a row in 'survey_responses'.
 
-  Future<bool> _checkSurveyStatus(String authUserId) async {
+    Future<bool> _checkSurveyStatus(String authUserId) async {
     try {
-      // 1. First, check if they saved data using their Login ID (e.g. from a previous login)
+      // 1. Check database for this User ID
       final authData = await _supabase
           .from('survey_responses')
           .select('id')
-          .eq('id', authUserId) 
+          .eq('id', authUserId)
           .maybeSingle();
 
-      if (authData != null) return true; // Found it immediately!
+      if (authData != null) return true;
 
-      // 2. PLAN B: Check if they did the survey anonymously on this device
+      // 2. Check for previous anonymous sessions
       final prefs = await SharedPreferences.getInstance();
       final String? localId = prefs.getString('survey_session_id');
 
       if (localId != null) {
-        // Now check Supabase for this ANONYMOUS ID
         final localData = await _supabase
             .from('survey_responses')
             .select('id')
             .eq('id', localId)
             .maybeSingle();
-        
-        if (localData != null) {
-          return true; // Found their anonymous data!
-        }
+
+        if (localData != null) return true;
       }
 
-      return false; // No data found at all
+      return false;
     } catch (e) {
+      // If table doesn't exist or RLS denies access, assume new user
+      print("Check Survey Status Error (Safe to ignore for new users): $e");
       return false;
     }
   }
@@ -102,9 +102,11 @@ class AuthController extends StateNotifier<AuthState> {
         password: password,
       );
 
-      // Check if they have done the survey before
+      // Check if user exists (should not be null on success)
+      if (res.user == null) throw const AuthException("Login failed");
+
       final hasData = await _checkSurveyStatus(res.user!.id);
-      
+
       state = state.copyWith(
         status: AuthStatus.success,
         userEmail: res.user?.email,
@@ -114,32 +116,43 @@ class AuthController extends StateNotifier<AuthState> {
     } on AuthException catch (e) {
       state = state.copyWith(status: AuthStatus.error, errorMessage: e.message);
     } catch (e) {
-      state = state.copyWith(status: AuthStatus.error, errorMessage: 'An unexpected error occurred.');
+      state = state.copyWith(
+          status: AuthStatus.error, errorMessage: 'An unexpected error occurred: $e');
     }
   }
 
-  Future<void> register(String name, String email, String password) async {
+    Future<void> register(String name, String email, String password) async {
     state = state.copyWith(status: AuthStatus.loading);
     try {
       final AuthResponse res = await _supabase.auth.signUp(
         email: email,
         password: password,
-        data: {'full_name': name}, // Store the user's name in Supabase metadata
+        data: {'full_name': name},
       );
-      
+
+      // CRITICAL FIX: Supabase often requires email verification.
+      // If verification is required, session is NULL. We shouldn't navigate yet.
+      if (res.session == null && res.user != null) {
+        state = state.copyWith(
+          status: AuthStatus.emailVerificationRequired,
+          errorMessage: 'Account created! Please check your email to verify.',
+        );
+        return;
+      }
+
       state = state.copyWith(
         status: AuthStatus.success,
         userEmail: res.user?.email,
         userName: name,
-        hasCompletedSurvey: false, // New users haven't completed the survey
+        hasCompletedSurvey: false,
       );
     } on AuthException catch (e) {
       state = state.copyWith(status: AuthStatus.error, errorMessage: e.message);
     } catch (e) {
-      state = state.copyWith(status: AuthStatus.error, errorMessage: 'An unexpected error occurred.');
+      state = state.copyWith(
+          status: AuthStatus.error, errorMessage: 'Registration failed: $e');
     }
   }
-
   // ── Google Sign-In ────────────────────────────────────────────────────────
 
   Future<void> signInWithGoogle() async {

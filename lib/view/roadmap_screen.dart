@@ -1,4 +1,5 @@
 // lib/view/roadmap_screen.dart
+import 'package:companyenchancer/view/milestone_detailscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controller/roadmap_controller.dart';
@@ -395,24 +396,23 @@ class _MilestoneCard extends StatelessWidget {
                 ),
                 if (isCurrent) ...[
                   const Spacer(),
-                  ElevatedButton(
-                    onPressed: onComplete,
-                    style: ElevatedButton.styleFrom(
+                  // In _MilestoneCard — change the Start button:
+                ElevatedButton(
+                onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                builder: (_) => MilestoneDetailScreen(
+                          milestone: milestone,
+                          onComplete: onComplete,
+                        ),
+    ),
+  ),
+  style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.blue,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: AppTheme.radiusSm,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                     ),
                     child: const Text('Start →'),
-                  ),
+),
                 ],
               ],
             ),
