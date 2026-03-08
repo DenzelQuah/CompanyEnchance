@@ -63,7 +63,7 @@ class RoadmapController extends StateNotifier<RoadmapState> {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Load
+  // Loads
   // ─────────────────────────────────────────────────────────────────────────
 
   Future<void> _loadUserRoadmap() async {
@@ -161,6 +161,15 @@ class RoadmapController extends StateNotifier<RoadmapState> {
           resources: resources,
         );
       }).toList();
+
+      savedList.sort((a, b) {
+        // Extract number from "Week 3" -> 3
+        final int weekA = int.tryParse(a.weekLabel.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+        final int weekB = int.tryParse(b.weekLabel.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+        
+        // Use compareTo for Ascending order (1, 2, 3...)
+        return weekA.compareTo(weekB); 
+      });
 
       // 4. Self-heal: legacy rows have no steps — delete and regenerate once
       if (savedList.isNotEmpty && savedList.first.steps.isEmpty) {
