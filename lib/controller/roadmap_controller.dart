@@ -1,7 +1,4 @@
-// lib/controller/roadmap_controller.dart
-// Manages roadmap milestone state and XP tracking.
 import 'dart:convert';
-
 import 'package:companyenchancer/model/survey_model.dart';
 import 'package:companyenchancer/services/roadmap_prompt.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -9,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../model/milestone_model.dart';
 
 class RoadmapState {
@@ -647,7 +643,6 @@ class RoadmapController extends StateNotifier<RoadmapState> {
       print('⚠ AI strategy generation failed (non-fatal): $e');
     }
   }
-
   // ─────────────────────────────────────────────────────────────────────────
   // Public actions
   // ─────────────────────────────────────────────────────────────────────────
