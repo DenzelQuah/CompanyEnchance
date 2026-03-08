@@ -1,4 +1,6 @@
 // lib/view/milestone_detail_screen.dart
+// Performance-optimized: expensive computations cached, no inline withOpacity,
+// const constructors everywhere possible, ListView.builder for steps.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,52 +12,52 @@ import '../model/milestone_model.dart';
 import '../model/survey_model.dart';
 import 'chatbot_sheet.dart';
 
+// ─── Pre-computed color constants (no withOpacity at runtime) ────────────────
+const _kOrangeBg     = Color(0x1AFF9800); // orange 10%
+const _kOrangeBorder = Color(0x66FF9800); // orange 40%
+const _kBlueBorder   = Color(0x4D1D4ED8); // blue 30%
+const _kBorderFaint  = Color(0x99E5E7EB); // border 60%
+const _kWhite15      = Color(0x26FFFFFF); // white 15%
+const _kPurple50     = Color(0xFFF5F3FF);
+const _kPurple100    = Color(0xFFEDE9FE);
+const _kPurple200    = Color(0xFFDDD6FE);
+const _kPurple300    = Color(0xFFC4B5FD);
+const _kPurple700    = Color(0xFF6D28D9);
+const _kPurple800    = Color(0xFF5B21B6);
+const _kGray50       = Color(0xFFF9FAFB);
+const _kGray100      = Color(0xFFF3F4F6);
+const _kGray200      = Color(0xFFE5E7EB);
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Internal display resource — unified from AI-embedded and fallback catalogue
+// Internal display resource
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _DisplayResource {
-  final String name;
-  final String type;
-  final String provider;
-  final String eligibility;
-  final String maxAmount;
-  final String processingTime;
-  final String highlight;
-  final String url;
-
+  final String name, type, provider, eligibility,
+               maxAmount, processingTime, highlight, url;
   const _DisplayResource({
-    required this.name,
-    required this.type,
-    required this.provider,
-    required this.eligibility,
-    required this.maxAmount,
-    required this.processingTime,
-    required this.highlight,
-    required this.url,
+    required this.name, required this.type, required this.provider,
+    required this.eligibility, required this.maxAmount,
+    required this.processingTime, required this.highlight, required this.url,
   });
 
-  /// Maps from the AI-generated MilestoneResource (which now has all fields).
-  factory _DisplayResource.fromEmbedded(MilestoneResource r) {
-    return _DisplayResource(
-      name:           r.name,
-      type:           r.type.isNotEmpty          ? r.type           : 'Resource',
-      provider:       r.provider.isNotEmpty      ? r.provider       : r.name,
-      eligibility:    r.eligibility,
-      maxAmount:      r.maxAmount.isNotEmpty      ? r.maxAmount      : 'See website',
-      processingTime: r.processingTime.isNotEmpty ? r.processingTime : 'See website',
-      highlight:      r.highlight.isNotEmpty      ? r.highlight      : r.eligibility,
-      url:            r.url,
-    );
-  }
+  factory _DisplayResource.fromEmbedded(MilestoneResource r) => _DisplayResource(
+    name:           r.name,
+    type:           r.type.isNotEmpty          ? r.type           : 'Resource',
+    provider:       r.provider.isNotEmpty      ? r.provider       : r.name,
+    eligibility:    r.eligibility,
+    maxAmount:      r.maxAmount.isNotEmpty      ? r.maxAmount      : 'See website',
+    processingTime: r.processingTime.isNotEmpty ? r.processingTime : 'See website',
+    highlight:      r.highlight.isNotEmpty      ? r.highlight      : r.eligibility,
+    url:            r.url,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Static ASEAN fallback catalogue — used to top-up to ≥ 2 resources
+// Static ASEAN fallback catalogue
 // ─────────────────────────────────────────────────────────────────────────────
 
 const List<_DisplayResource> _kFallback = [
-  // ── Malaysia ──
   _DisplayResource(name: 'SME Digitalization Grant', type: 'Grant',
       provider: 'SME Corp Malaysia / MDEC',
       eligibility: 'Malaysian SMEs, min. 60% local ownership',
@@ -86,8 +88,6 @@ const List<_DisplayResource> _kFallback = [
       maxAmount: 'RM 5,000 per year', processingTime: '3–4 weeks',
       highlight: 'Subsidised onboarding fees for approved e-marketplaces',
       url: 'https://mdec.my/etrade'),
-
-  // ── Singapore ──
   _DisplayResource(name: 'Enterprise Development Grant (EDG)', type: 'Grant',
       provider: 'Enterprise Singapore',
       eligibility: 'Singapore-registered SMEs, min. 30% local equity',
@@ -106,8 +106,6 @@ const List<_DisplayResource> _kFallback = [
       maxAmount: 'SGD 10,000 credit', processingTime: '2–4 weeks',
       highlight: 'Offsets costs of workforce transformation programmes',
       url: 'https://www.skillsfuture.gov.sg/sfec'),
-
-  // ── Indonesia ──
   _DisplayResource(name: 'KUR (Kredit Usaha Rakyat)', type: 'Loan',
       provider: 'Ministry of Finance / State Banks',
       eligibility: 'Indonesian MSMEs with valid business identity',
@@ -126,8 +124,6 @@ const List<_DisplayResource> _kFallback = [
       maxAmount: 'Free services', processingTime: 'Immediate',
       highlight: 'Free business consulting, training and mentoring centre network',
       url: 'https://www.depkop.go.id'),
-
-  // ── Thailand ──
   _DisplayResource(name: 'SME Development Bank Soft Loan', type: 'Loan',
       provider: 'SME Development Bank of Thailand',
       eligibility: 'Thai-registered SMEs, max THB 500M annual revenue',
@@ -146,8 +142,6 @@ const List<_DisplayResource> _kFallback = [
       maxAmount: 'THB 200,000', processingTime: '4–6 weeks',
       highlight: 'Covers trade fair participation and international market development',
       url: 'https://www.ditp.go.th'),
-
-  // ── Vietnam ──
   _DisplayResource(name: 'SME Support Fund Credit Guarantee', type: 'Guarantee',
       provider: 'Vietnam Development Bank',
       eligibility: 'Vietnamese-registered SMEs',
@@ -160,8 +154,6 @@ const List<_DisplayResource> _kFallback = [
       maxAmount: 'Free training and consultation', processingTime: 'Immediate',
       highlight: 'Free business registration, legal consultation and market access support',
       url: 'https://business.gov.vn'),
-
-  // ── Philippines ──
   _DisplayResource(name: 'MSME Credit Guarantee Program', type: 'Guarantee',
       provider: 'Philippine Guarantee Corporation (PhilGuarantee)',
       eligibility: 'Filipino MSMEs with bank accounts',
@@ -182,45 +174,42 @@ const List<_DisplayResource> _kFallback = [
       url: 'https://www.sbcorp.gov.ph'),
 ];
 
-// Country keyword map for filtering fallback catalogue
 bool _isCountryMatch(_DisplayResource r, String country) {
   final c = country.toLowerCase();
   final n = r.name.toLowerCase();
-  if (c.contains('malaysia') || c.contains('kuala lumpur') || c.contains('my')) {
+  if (c.contains('malaysia') || c.contains('kuala lumpur')) {
     return n.contains('sme digit') || n.contains('bap') || n.contains('matrade') ||
         n.contains('bnm') || n.contains('mdec');
   }
-  if (c.contains('singapore') || c.contains('sg')) {
+  if (c.contains('singapore')) {
     return n.contains('edg') || n.contains('psg') || n.contains('skillsfuture') ||
         n.contains('enterprise development') || n.contains('productivity solution');
   }
-  if (c.contains('indonesia') || c.contains('jakarta') || c.contains('id')) {
+  if (c.contains('indonesia')) {
     return n.contains('kur') || n.contains('lpei') || n.contains('plut');
   }
-  if (c.contains('thailand') || c.contains('bangkok') || c.contains('th')) {
+  if (c.contains('thailand')) {
     return n.contains('sme development bank') || n.contains('boi') || n.contains('ditp');
   }
-  if (c.contains('vietnam') || c.contains('ho chi') || c.contains('hanoi') || c.contains('vn')) {
+  if (c.contains('vietnam')) {
     return n.contains('sme support fund') || n.contains('national sme development');
   }
-  if (c.contains('philippines') || c.contains('manila') || c.contains('ph')) {
+  if (c.contains('philippines')) {
     return n.contains('msme credit') || n.contains('dti') || n.contains('sb corp');
   }
-  return true; // unknown country — show all as fallback
+  return true;
 }
 
-/// Returns 2–3 display resources. Uses AI-embedded first, tops up from catalogue.
+// Pure function — called once, cached in initState
 List<_DisplayResource> _resolveResources({
   required String country,
   required String milestoneTitle,
   required String milestoneDescription,
   required List<MilestoneResource> embedded,
 }) {
-  // 1. Convert embedded (from AI — have all rich fields).
   final fromEmbedded = embedded.map(_DisplayResource.fromEmbedded).toList();
   if (fromEmbedded.length >= 2) return fromEmbedded.take(3).toList();
 
-  // 2. Top-up from static catalogue.
   final lt = milestoneTitle.toLowerCase();
   final ld = milestoneDescription.toLowerCase();
   const kws = ['digital','export','loan','grant','finance','market',
@@ -229,22 +218,24 @@ List<_DisplayResource> _resolveResources({
   final pool = _kFallback.where((r) => _isCountryMatch(r, country)).toList();
   final alreadyNamed = fromEmbedded.map((r) => r.name.toLowerCase()).toSet();
 
-  final scored = pool.where((r) => !alreadyNamed.contains(r.name.toLowerCase()))
+  final scored = pool
+      .where((r) => !alreadyNamed.contains(r.name.toLowerCase()))
       .map((r) {
-    final s = '${r.name} ${r.type} ${r.highlight}'.toLowerCase();
-    int sc = 0;
-    for (final kw in kws) {
-      if ((lt.contains(kw) || ld.contains(kw)) && s.contains(kw)) sc++;
-    }
-    return MapEntry(r, sc);
-  }).toList()..sort((a, b) => b.value.compareTo(a.value));
+        final s = '${r.name} ${r.type} ${r.highlight}'.toLowerCase();
+        int sc = 0;
+        for (final kw in kws) {
+          if ((lt.contains(kw) || ld.contains(kw)) && s.contains(kw)) sc++;
+        }
+        return MapEntry(r, sc);
+      })
+      .toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
 
-  final topups = scored.map((e) => e.key).take(3 - fromEmbedded.length).toList();
-  return [...fromEmbedded, ...topups];
+  return [...fromEmbedded, ...scored.map((e) => e.key).take(3 - fromEmbedded.length)];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SOS prompt — structured hidden reasoning via <system_context> tag
+// SOS prompt builder
 // ─────────────────────────────────────────────────────────────────────────────
 
 String _buildSosPrompt({
@@ -280,10 +271,10 @@ BUSINESS PROFILE:
   Budget   : ${survey.budgetPlan?.label ?? 'Unknown'}
 
 RESPONSE RULES:
-1. Give numbered sub-steps (min 4, no max) to complete EXACTLY "$stepText".
+1. Give numbered sub-steps (min 4) to complete EXACTLY "$stepText".
 2. All guidance must be specific to ${survey.location} — cite real local websites.
 3. Fit the solution to ${survey.teamSize} people and ${survey.budgetPlan?.label} budget.
-4. Never ask the user to re-explain — you already know their situation.
+4. Never ask the user to re-explain.
 5. Tone: direct, prescriptive, zero fluff.
 </system_context>
 
@@ -295,16 +286,15 @@ Please walk me through exactly how to complete this step for my business in ${su
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Why This Works — survey-tailored points
+// Why This Works data
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _WhyPoint {
-  final String emoji;
-  final String title;
-  final String body;
+  final String emoji, title, body;
   const _WhyPoint(this.emoji, this.title, this.body);
 }
 
+// Pure function — called once, cached in initState
 List<_WhyPoint> _buildWhyPoints(MilestoneModel m, SurveyModel s) {
   final points = <_WhyPoint>[];
   final lt = m.title.toLowerCase();
@@ -315,13 +305,13 @@ List<_WhyPoint> _buildWhyPoints(MilestoneModel m, SurveyModel s) {
 
   if (s.salesTracking == SalesTracking.paper &&
       (lt.contains('sales') || lt.contains('digital'))) {
-    points.add(_WhyPoint('📋', 'Fixes Your #1 Operational Blind Spot',
+    points.add(const _WhyPoint('📋', 'Fixes Your #1 Operational Blind Spot',
         'You track sales on paper. Without digital records you cannot prove revenue '
         'to banks, spot trends, or qualify for any government grant. '
         'SME Corp data shows digitised businesses cut order errors by 27% within 3 months.'));
   }
   if (!s.hasAuditedStatements && s.primaryGoal == PrimaryGoal.getInvestmentReady) {
-    points.add(_WhyPoint('💼', 'Unlocks Your Path to Investment',
+    points.add(const _WhyPoint('💼', 'Unlocks Your Path to Investment',
         'Every investor and grant body in ASEAN requires 2 years of audited '
         'financials before reviewing any application. You have none yet — '
         'this milestone removes that single biggest blocker.'));
@@ -342,7 +332,7 @@ List<_WhyPoint> _buildWhyPoints(MilestoneModel m, SurveyModel s) {
   }
   if (s.primaryGoal == PrimaryGoal.exportAsean &&
       (lt.contains('export') || lt.contains('matrade') || lt.contains('market'))) {
-    points.add(_WhyPoint('🌏', 'Required for ASEAN Market Entry',
+    points.add(const _WhyPoint('🌏', 'Required for ASEAN Market Entry',
         'Foreign buyers and logistics partners require MATRADE registration and '
         'verified export documentation before placing any order. '
         'This milestone is the non-negotiable entry ticket.'));
@@ -382,6 +372,194 @@ String _goalLine(SurveyModel s) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Micro-task builder  (pure function, called once per step tap)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Extracts parenthesised examples from step text, e.g. "(e.g., Wave, StoreHub)" → "Wave, StoreHub"
+String? _extractExamples(String stepText) {
+  final match = RegExp(r'\(e\.?g\.?,?\s*([^)]+)\)').firstMatch(stepText);
+  return match?.group(1)?.trim();
+}
+
+// Extracts a quoted tool/name from step text, e.g. go to "wave.com" → wave.com
+String? _extractQuotedTool(String stepText) {
+  final match = RegExp(r'"([^"]{3,40})"').firstMatch(stepText);
+  return match?.group(1)?.trim();
+}
+
+// Returns the specific subject the step is asking about (countries, platforms, docs, etc.)
+String? _extractSubject(String stepText) {
+  // Numbers + subject: "2-3 priority ASEAN countries" → "2–3 priority ASEAN countries"
+  final match = RegExp(r'\d[\d–-]*\s+\w[\w\s]{3,30}(?=\s+based|\s+from|\s+using|,|\.|$)',
+      caseSensitive: false).firstMatch(stepText);
+  return match?.group(0)?.trim();
+}
+
+List<String> _buildMicroTasks(String stepText) {
+  final lower   = stepText.toLowerCase();
+  final examples = _extractExamples(stepText);   // e.g. "Singapore, Indonesia, Thailand"
+  final quoted   = _extractQuotedTool(stepText);  // e.g. "wave.com"
+  final subject  = _extractSubject(stepText);     // e.g. "2-3 priority ASEAN countries"
+
+  // ── REGISTER / SIGN UP ────────────────────────────────────────────────────
+  if (lower.contains('register') || lower.contains('sign up') || lower.contains('create account')) {
+    final platform = examples ?? quoted ?? 'the platform';
+    return [
+      'Open $platform using the link in Recommended Tool below',
+      'Fill in your business name, registration number and contact details',
+      'Upload required documents (IC, SSM cert, bank statement if asked)',
+      'Submit and screenshot or save your confirmation number',
+    ];
+  }
+
+  // ── IDENTIFY / LIST with specific content already given ───────────────────
+  // Step already names what to identify — skip the "search" step, go straight to recording
+  if ((lower.contains('identify') || lower.contains('list') || lower.contains('select')) &&
+      examples != null) {
+    return [
+      'The step has already identified the options: $examples',
+      'Open your notes app, Google Doc, or spreadsheet',
+      'Write down each option and one reason why it fits your business',
+      'Rank them by priority — put the easiest to act on first',
+      'Save the list so you can reference it in later steps',
+    ];
+  }
+
+  // ── RESEARCH without specific answer given ────────────────────────────────
+  if (lower.contains('research') || lower.contains('identify') || lower.contains('find')) {
+    final topic = subject ?? examples ?? 'the options for this step';
+    return [
+      'Open Google or the tool linked in Recommended Tool below',
+      'Search specifically for: $topic',
+      'Open at least 3 results and note the key details from each',
+      'Write your shortlist in a notes app or spreadsheet',
+      'Pick the one best fit and note your reasoning',
+    ];
+  }
+
+  // ── GO TO / VISIT a specific URL or tool ──────────────────────────────────
+  if (lower.contains('go to') || lower.contains('visit') || lower.contains('open the')) {
+    final destination = quoted ?? examples ?? 'the website in Recommended Tool below';
+    return [
+      'Open $destination in your browser',
+      'Find the specific section or form mentioned in the step',
+      'Complete what the page asks for — do not skip any required fields',
+      'Screenshot or save confirmation before closing the page',
+    ];
+  }
+
+  // ── CONTACT / REACH OUT ───────────────────────────────────────────────────
+  if (lower.contains('contact') || lower.contains('reach out') || lower.contains('email') || lower.contains('call')) {
+    final who = examples ?? subject ?? 'the contact';
+    return [
+      'Find the correct contact details for $who (website, LinkedIn, or WhatsApp)',
+      'Write a 3-sentence message: who you are, what you need, and your ask',
+      'Send the message or make the call now — do not draft and delay',
+      'Log the date sent and expected reply timeframe in your notes',
+    ];
+  }
+
+  // ── SET UP / INSTALL a tool ───────────────────────────────────────────────
+  if (lower.contains('set up') || lower.contains('configure') || lower.contains('install') ||
+      lower.contains('create your') || lower.contains('open your')) {
+    final tool = quoted ?? examples ?? 'the tool in Recommended Tool below';
+    return [
+      'Open $tool using the link in Recommended Tool below',
+      'Complete the account creation or onboarding flow',
+      'Enter your business name, sector and contact details',
+      'Do one test action (create a record, post, or invoice) to confirm it works',
+    ];
+  }
+
+  // ── WRITE / DRAFT / PREPARE a document ───────────────────────────────────
+  if (lower.contains('write') || lower.contains('draft') || lower.contains('prepare') ||
+      lower.contains('create a') || lower.contains('build a')) {
+    final doc = subject ?? examples ?? 'the document';
+    return [
+      'Open Google Docs, Word, or your notes app',
+      'Start with a title and the key sections needed for $doc',
+      'Fill in the content — write quickly, fix later',
+      'Review once for missing info or errors',
+      'Save and share with anyone who needs to see it',
+    ];
+  }
+
+  // ── POST / PUBLISH / UPLOAD ───────────────────────────────────────────────
+  if (lower.contains('post') || lower.contains('publish') || lower.contains('upload') || lower.contains('share')) {
+    final platform = examples ?? quoted ?? 'the platform';
+    return [
+      'Prepare your content (image, caption, or file) before opening $platform',
+      'Log in and go to the upload or create section',
+      'Fill in all required fields — title, description, category',
+      'Hit publish and confirm it is publicly visible',
+    ];
+  }
+
+  // ── ANALYSE / REVIEW / CHECK ──────────────────────────────────────────────
+  if (lower.contains('analys') || lower.contains('review') || lower.contains('check') ||
+      lower.contains('measure') || lower.contains('track')) {
+    final what = subject ?? examples ?? 'the data for this step';
+    return [
+      'Open the tool or report that contains $what',
+      'Look at the numbers — note what is higher or lower than expected',
+      'Write 2–3 observations in plain language',
+      'Decide on one action you will take based on what you found',
+    ];
+  }
+
+  // ── APPLY / SUBMIT ────────────────────────────────────────────────────────
+  if (lower.contains('apply') || lower.contains('submit') || lower.contains('application') ||
+      lower.contains('register for') || lower.contains('enrol')) {
+    final programme = examples ?? subject ?? 'the programme';
+    return [
+      'Read the eligibility requirements for $programme in the Resources section below',
+      'Gather all required documents before starting the form',
+      'Fill in the application completely — do not leave fields blank',
+      'Submit and immediately save your reference number or confirmation email',
+    ];
+  }
+
+  // ── CALCULATE / COMPUTE ───────────────────────────────────────────────────
+  if (lower.contains('calculat') || lower.contains('estimat') || lower.contains('forecast')) {
+    return [
+      'Open a spreadsheet or calculator app',
+      'Enter the numbers or data you already have',
+      'Apply the formula or method described in the step',
+      'Write down the result and what it means for your next decision',
+    ];
+  }
+
+  // ── DEFAULT — generic completion framework ────────────────────────────────
+  return [
+    'Re-read the step once to confirm you understand exactly what is needed',
+    'Gather any tools, documents or information required',
+    'Execute the step completely — do not stop halfway',
+    'Verify your result matches what the step asked for before marking done',
+  ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Type helpers (static lookups — no switch overhead at runtime)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _typeColors = <String, Color>{
+  'Grant':        Color(0xFF059669),
+  'Loan':         AppTheme.blue,
+  'Credit':       AppTheme.blue,
+  'Guarantee':    Color(0xFF7C3AED),
+  'Incentive':    Color(0xFF7C3AED),
+  'Free Service': Color(0xFF92400E),
+};
+
+const _typeIcons = <String, String>{
+  'Grant': '💸', 'Loan': '🏦', 'Credit': '🏦',
+  'Guarantee': '🛡', 'Incentive': '🎁', 'Free Service': '📚',
+};
+
+Color _typeColor(String type) => _typeColors[type] ?? AppTheme.textMuted;
+String _typeIcon(String type)  => _typeIcons[type]  ?? '🔖';
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Main screen
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -406,29 +584,42 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
   late int _currentStep;
   final Set<int> _checkedSteps = {};
 
-  bool _showComparison  = false; // cards vs table toggle
-  bool _showAlternative = false; // main vs alt steps toggle
+  bool _showComparison  = false;
+  bool _showAlternative = false;
+
+  // ── Cached expensive computations — computed once in initState ────────────
+  late final List<_DisplayResource> _resources;
+  late final List<_WhyPoint> _whyPoints;
 
   @override
   void initState() {
     super.initState();
     _currentStep = widget.milestone.currentStep;
     for (int i = 0; i < _currentStep; i++) _checkedSteps.add(i);
+
+    // Cache — these never change while the screen is open
+    _resources = _resolveResources(
+      country: widget.survey.location,
+      milestoneTitle: widget.milestone.title,
+      milestoneDescription: widget.milestone.description,
+      embedded: widget.milestone.resources,
+    );
+    _whyPoints = _buildWhyPoints(widget.milestone, widget.survey);
   }
 
-  // ── Step gating ──────────────────────────────────────────────────────────
+  // ── Step gating ───────────────────────────────────────────────────────────
 
   int get _nextAllowedIndex => _checkedSteps.isEmpty
       ? 0
       : (_checkedSteps.toList()..sort()).last + 1;
 
-  bool get _allDone => _checkedSteps.length == widget.milestone.steps.length;
+  bool get _allDone =>
+      _checkedSteps.length == widget.milestone.steps.length;
 
   void _saveProgress() {
     int cons = 0;
     for (int i = 0; i < widget.milestone.steps.length; i++) {
-      if (_checkedSteps.contains(i)) cons++;
-      else break;
+      if (_checkedSteps.contains(i)) cons++; else break;
     }
     _currentStep = cons;
     ref.read(roadmapControllerProvider.notifier)
@@ -457,92 +648,12 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
       }
       return;
     }
-    _showVerifyDialog(index, stepText);
-  }
-
-  void _showVerifyDialog(int index, String stepText) {
     _showGuidedTaskSheet(index, stepText);
   }
 
-  /// Generates a list of concrete micro-actions for a given step.
-  /// These are derived from the step text + milestone context, giving
-  /// the user something tangible to do rather than just asking "are you done?".
-  List<String> _buildMicroTasks(String stepText, MilestoneModel m) {
-    final lower = stepText.toLowerCase();
-    final tasks = <String>[];
-
-    // ── Generic decomposition heuristics ──────────────────────────────────
-    if (lower.contains('register') || lower.contains('sign up') || lower.contains('create account')) {
-      tasks.addAll([
-        'Open the registration link or app',
-        'Fill in your business name, IC/SSM number and contact details',
-        'Upload required documents (IC, SSM cert, bank statement)',
-        'Submit and screenshot the confirmation page',
-      ]);
-    } else if (lower.contains('research') || lower.contains('identify') || lower.contains('list')) {
-      tasks.addAll([
-        'Open Google or the recommended tool for this step',
-        'Search for at least 3 options or sources',
-        'Write down your findings (notes app or spreadsheet)',
-        'Pick the best option that fits your budget and timeline',
-      ]);
-    } else if (lower.contains('contact') || lower.contains('reach out') || lower.contains('email') || lower.contains('call')) {
-      tasks.addAll([
-        'Find the correct contact (website, LinkedIn, or WhatsApp)',
-        'Prepare a short 3-sentence intro about your business',
-        'Send your message / make the call',
-        'Note down the response or follow-up date',
-      ]);
-    } else if (lower.contains('set up') || lower.contains('configure') || lower.contains('install')) {
-      tasks.addAll([
-        'Download or open the tool (link in Recommended Tool below)',
-        'Complete the initial setup or onboarding flow',
-        'Add your business name, logo and basic info',
-        'Test with one real data entry to confirm it works',
-      ]);
-    } else if (lower.contains('create') || lower.contains('write') || lower.contains('draft') || lower.contains('prepare')) {
-      tasks.addAll([
-        'Open a Google Doc, Word, or notes app',
-        'Write a first draft — focus on content, not perfection',
-        'Review and fill in any missing details',
-        'Save or export the final version',
-      ]);
-    } else if (lower.contains('post') || lower.contains('publish') || lower.contains('upload') || lower.contains('share')) {
-      tasks.addAll([
-        'Prepare your content (image, caption, or file)',
-        'Log in to the platform',
-        'Upload and fill in all required fields',
-        'Hit publish / post and confirm it is live',
-      ]);
-    } else if (lower.contains('analyse') || lower.contains('analyze') || lower.contains('review') || lower.contains('check')) {
-      tasks.addAll([
-        'Open the tool or platform with the data',
-        'Look at the key numbers or metrics for this step',
-        'Write 2–3 observations about what you see',
-        'Decide on one action based on what you found',
-      ]);
-    } else if (lower.contains('apply') || lower.contains('submit') || lower.contains('application')) {
-      tasks.addAll([
-        'Gather all required documents listed in the resource below',
-        'Fill in the application form completely',
-        'Double-check all information is accurate',
-        'Submit and save your reference number or receipt',
-      ]);
-    } else {
-      // Fallback — generic 4-step framework
-      tasks.addAll([
-        'Read the step description carefully one more time',
-        'Gather any tools, documents or info you need',
-        'Execute the step fully — don\'t stop halfway',
-        'Verify your output matches what the step asked for',
-      ]);
-    }
-
-    return tasks;
-  }
-
   void _showGuidedTaskSheet(int index, String stepText) {
-    final microTasks = _buildMicroTasks(stepText, widget.milestone);
+    // _buildMicroTasks is pure and cheap — OK to call here
+    final microTasks = _buildMicroTasks(stepText);
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -551,12 +662,9 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
         stepIndex: index,
         stepText: stepText,
         microTasks: microTasks,
-        milestone: widget.milestone,
-        survey: widget.survey,
-        onSosPressed: () {
-          Navigator.pop(ctx);
-          _openSos(index, stepText);
-        },
+        totalSteps: widget.milestone.steps.length,
+        location: widget.survey.location,
+        onSosPressed: () { Navigator.pop(ctx); _openSos(index, stepText); },
         onConfirmedDone: () {
           Navigator.pop(ctx);
           setState(() { _checkedSteps.add(index); _saveProgress(); });
@@ -570,10 +678,12 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
     final done  = _checkedSteps.length;
     final total = widget.milestone.steps.length;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(done == total
-          ? '🎉 All steps complete! Claim your XP below.'
-          : '✅ Step ${index + 1} done — $done/$total complete!',
-          style: const TextStyle(fontWeight: FontWeight.w600)),
+      content: Text(
+        done == total
+            ? '🎉 All steps complete! Claim your XP below.'
+            : '✅ Step ${index + 1} done — $done/$total complete!',
+        style: const TextStyle(fontWeight: FontWeight.w600),
+      ),
       backgroundColor: done == total ? AppTheme.green : AppTheme.blue,
       behavior: SnackBarBehavior.floating,
       duration: const Duration(seconds: 3),
@@ -582,37 +692,31 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
   }
 
   void _openSos(int stepIndex, String stepText, {bool isAlternative = false}) {
-    final prompt = _buildSosPrompt(
-      milestoneTitle: widget.milestone.title,
-      stepText: stepText,
-      stepIndex: stepIndex,
-      totalSteps: widget.milestone.steps.length,
-      completedSteps: _checkedSteps.length,
-      survey: widget.survey,
-      isAlternative: isAlternative,
-    );
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => ChatbotSheet(initialQuery: prompt),
+      builder: (_) => ChatbotSheet(
+        initialQuery: _buildSosPrompt(
+          milestoneTitle: widget.milestone.title,
+          stepText: stepText,
+          stepIndex: stepIndex,
+          totalSteps: widget.milestone.steps.length,
+          completedSteps: _checkedSteps.length,
+          survey: widget.survey,
+          isAlternative: isAlternative,
+        ),
+      ),
     );
   }
 
-  // ── Build ────────────────────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final m      = widget.milestone;
     final survey = widget.survey;
-    final res    = _resolveResources(
-      country: survey.location,
-      milestoneTitle: m.title,
-      milestoneDescription: m.description,
-      embedded: m.resources,
-    );
-    final whyPoints = _buildWhyPoints(m, survey);
-    final hasAlt    = m.alternativeSteps.isNotEmpty;
+    final hasAlt = m.alternativeSteps.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -659,118 +763,177 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 120),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHero(m),
-            _buildProgressBar(m),
+      body: CustomScrollView(
+        slivers: [
+          // ── Fixed header sections (hero + progress + step hint) ────────────
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _MilestoneHero(milestone: m),
+                  _ProgressBar(checkedCount: _checkedSteps.length, total: m.steps.length, allDone: _allDone),
+                  _StepsHeader(
+                    hasAlt: hasAlt,
+                    showAlternative: _showAlternative,
+                    onToggleAlt: () => setState(() => _showAlternative = !_showAlternative),
+                  ),
+                  const SizedBox(height: 4),
+                  _StepHint(allDone: _allDone, nextIndex: _nextAllowedIndex, hasAlt: hasAlt),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
+          ),
 
-            // Steps header row with Alt toggle
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const _SectionLabel('YOUR ACTION STEPS'),
-              if (hasAlt)
-                GestureDetector(
-                  onTap: () => setState(() => _showAlternative = !_showAlternative),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: _showAlternative
-                          ? Colors.purple.shade100
-                          : AppTheme.background,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: _showAlternative
-                          ? Colors.purple.shade300 : AppTheme.border),
-                    ),
-                    child: Text(
-                      _showAlternative ? '📋 Main Steps' : '🔀 Alt Route',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                          color: _showAlternative
-                              ? Colors.purple.shade700 : AppTheme.textMuted),
+          // ── Steps list (lazy — only builds visible items) ──────────────────
+          if (!_showAlternative)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (ctx, i) => _StepCard(
+                    index: i,
+                    stepText: m.steps[i],
+                    isChecked: _checkedSteps.contains(i),
+                    isActive: i == _nextAllowedIndex,
+                    isLocked: i > _nextAllowedIndex,
+                    isAlternative: false,
+                    onTap: () => _handleStepTap(i, m.steps[i]),
+                    onSos: () => _openSos(i, m.steps[i]),
+                  ),
+                  childCount: m.steps.length,
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              sliver: SliverToBoxAdapter(
+                child: _AltPanel(
+                  steps: m.alternativeSteps,
+                  onBack: () => setState(() => _showAlternative = false),
+                  onSos: (i, t) => _openSos(i, t, isAlternative: true),
+                ),
+              ),
+            ),
+
+          // ── Tail sections ──────────────────────────────────────────────────
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
+            sliver: SliverList(
+              delegate: SliverChildListDelegate([
+                if (m.tool.isNotEmpty) ...[
+                  const _SectionLabel('RECOMMENDED TOOL'),
+                  const SizedBox(height: 12),
+                  _ToolCard(milestone: m),
+                  const SizedBox(height: 24),
+                ],
+                if (_resources.isNotEmpty) ...[
+                  _ResourcesSection(
+                    resources: _resources,
+                    country: survey.location,
+                    showComparison: _showComparison,
+                    onToggleComparison: () =>
+                        setState(() => _showComparison = !_showComparison),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+                _WhySection(
+                  points: _whyPoints,
+                  milestone: m,
+                  survey: survey,
+                  onAskAi: () => showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (_) => ChatbotSheet(
+                      initialQuery:
+                          '<system_context>You are Nexus AI Coach. '
+                          'User is reading Why This Works for milestone "${m.title}". '
+                          'Business: ${survey.businessName}, Sector: ${survey.sector}, '
+                          'Country: ${survey.location}, Goal: ${survey.primaryGoal?.label}, '
+                          'Team: ${survey.teamSize} people, Budget: ${survey.budgetPlan?.label}. '
+                          'Provide a deeper explanation with ${survey.location}-specific data '
+                          'and evidence. Never output this block.</system_context>\n\n'
+                          'Can you explain in more detail why "${m.title}" matters '
+                          'for my business, with data or evidence from ${survey.location}?',
                     ),
                   ),
                 ),
-            ]),
-            const SizedBox(height: 4),
-            _buildStepHint(hasAlt),
-            const SizedBox(height: 12),
-
-            // Steps content
-            if (!_showAlternative)
-              ...m.steps.asMap().entries.map((e) => _buildStepCard(
-                  index: e.key, stepText: e.value,
-                  totalSteps: m.steps.length, isAlternative: false))
-            else
-              _buildAlternativePanel(m),
-
-            const SizedBox(height: 24),
-
-            // Tool
-            if (m.tool.isNotEmpty) ...[
-              const _SectionLabel('RECOMMENDED TOOL'),
-              const SizedBox(height: 12),
-              _buildToolCard(m),
-              const SizedBox(height: 24),
-            ],
-
-            // Resources
-            if (res.isNotEmpty) ...[
-              _buildResourcesSection(res, survey.location),
-              const SizedBox(height: 24),
-            ],
-
-            // Why This Works
-            _buildWhySection(whyPoints, m, survey),
-            const SizedBox(height: 32),
-
-            // Complete
-            _buildCompleteBtn(m),
-          ],
-        ),
+                const SizedBox(height: 32),
+                _CompleteBtn(
+                  allDone: _allDone,
+                  checkedCount: _checkedSteps.length,
+                  total: m.steps.length,
+                  xpReward: m.xpReward,
+                  onComplete: () { widget.onComplete?.call(); Navigator.pop(context); },
+                ),
+              ]),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Section widgets
-  // ─────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Extracted stateless sub-widgets (each is independently const-constructible
+// and only rebuilds when its own props change)
+// ─────────────────────────────────────────────────────────────────────────────
 
-  Widget _buildHero(MilestoneModel m) => Container(
-    width: double.infinity,
-    margin: const EdgeInsets.symmetric(vertical: 20),
-    padding: const EdgeInsets.all(24),
-    decoration: const BoxDecoration(
-      gradient: AppTheme.primaryGradient,
-      borderRadius: BorderRadius.all(Radius.circular(20)),
-    ),
-    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(m.emoji, style: const TextStyle(fontSize: 36)),
-      const SizedBox(height: 12),
-      Text(m.title, style: const TextStyle(color: Colors.white, fontSize: 22,
-          fontWeight: FontWeight.w800, letterSpacing: -0.5)),
-      const SizedBox(height: 8),
-      Text(m.description, style: const TextStyle(color: Colors.white70,
-          fontSize: 13, height: 1.5)),
-      const SizedBox(height: 16),
-      Wrap(spacing: 8, runSpacing: 8, children: [
-        _InfoChip('⏱ ${m.estimatedTime}'),
-        _InfoChip('⭐ +${m.xpReward} XP'),
-        if (m.tool.isNotEmpty) _InfoChip('🛠 ${m.tool}'),
+class _MilestoneHero extends StatelessWidget {
+  final MilestoneModel milestone;
+  const _MilestoneHero({required this.milestone});
+
+  @override
+  Widget build(BuildContext context) {
+    final m = milestone;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 20),
+      padding: const EdgeInsets.all(24),
+      decoration: const BoxDecoration(
+        gradient: AppTheme.primaryGradient,
+        borderRadius: BorderRadius.all(Radius.circular(20)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(m.emoji, style: const TextStyle(fontSize: 36)),
+        const SizedBox(height: 12),
+        Text(m.title, style: const TextStyle(color: Colors.white, fontSize: 22,
+            fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+        const SizedBox(height: 8),
+        Text(m.description, style: const TextStyle(color: Colors.white70,
+            fontSize: 13, height: 1.5)),
+        const SizedBox(height: 16),
+        Wrap(spacing: 8, runSpacing: 8, children: [
+          _InfoChip('⏱ ${m.estimatedTime}'),
+          _InfoChip('⭐ +${m.xpReward} XP'),
+          if (m.tool.isNotEmpty) _InfoChip('🛠 ${m.tool}'),
+        ]),
       ]),
-    ]),
-  );
+    );
+  }
+}
 
-  Widget _buildProgressBar(MilestoneModel m) {
-    final progress = m.steps.isEmpty ? 0.0 : _checkedSteps.length / m.steps.length;
+class _ProgressBar extends StatelessWidget {
+  final int checkedCount, total;
+  final bool allDone;
+  const _ProgressBar({required this.checkedCount, required this.total, required this.allDone});
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = total == 0 ? 0.0 : checkedCount / total;
     return Column(children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text('${_checkedSteps.length} of ${m.steps.length} steps done',
+        Text('$checkedCount of $total steps done',
             style: const TextStyle(fontSize: 12, color: AppTheme.textMuted,
                 fontWeight: FontWeight.w600)),
         Text('${(progress * 100).toInt()}%',
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-                color: _allDone ? AppTheme.green : AppTheme.blue)),
+                color: allDone ? AppTheme.green : AppTheme.blue)),
       ]),
       const SizedBox(height: 8),
       ClipRRect(
@@ -779,15 +942,52 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
           value: progress, minHeight: 8,
           backgroundColor: AppTheme.border,
           valueColor: AlwaysStoppedAnimation<Color>(
-              _allDone ? AppTheme.green : AppTheme.blue),
+              allDone ? AppTheme.green : AppTheme.blue),
         ),
       ),
       const SizedBox(height: 20),
     ]);
   }
+}
 
-  Widget _buildStepHint(bool hasAlt) {
-    if (_allDone) {
+class _StepsHeader extends StatelessWidget {
+  final bool hasAlt, showAlternative;
+  final VoidCallback onToggleAlt;
+  const _StepsHeader({required this.hasAlt, required this.showAlternative, required this.onToggleAlt});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+      const _SectionLabel('YOUR ACTION STEPS'),
+      if (hasAlt)
+        GestureDetector(
+          onTap: onToggleAlt,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: showAlternative ? _kPurple100 : AppTheme.background,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: showAlternative ? _kPurple300 : AppTheme.border),
+            ),
+            child: Text(
+              showAlternative ? '📋 Main Steps' : '🔀 Alt Route',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                  color: showAlternative ? _kPurple700 : AppTheme.textMuted),
+            ),
+          ),
+        ),
+    ]);
+  }
+}
+
+class _StepHint extends StatelessWidget {
+  final bool allDone, hasAlt;
+  final int nextIndex;
+  const _StepHint({required this.allDone, required this.nextIndex, required this.hasAlt});
+
+  @override
+  Widget build(BuildContext context) {
+    if (allDone) {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(color: AppTheme.greenPale,
@@ -800,7 +1000,6 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
         ]),
       );
     }
-    final next = _nextAllowedIndex;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(color: AppTheme.bluePale,
@@ -808,36 +1007,49 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
       child: Row(children: [
         const Text('💡', style: TextStyle(fontSize: 14)), const SizedBox(width: 8),
         Expanded(child: Text(
-          next == 0
+          nextIndex == 0
               ? 'Start with Step 1. Each step unlocks the next after verification.'
-              : 'Step ${next + 1} is up next.${hasAlt ? '  Tap "🔀 Alt Route" above for a different approach.' : ''}',
+              : 'Step ${nextIndex + 1} is up next.${hasAlt ? '  Tap "🔀 Alt Route" for a different approach.' : ''}',
           style: const TextStyle(fontSize: 12, color: AppTheme.blue,
               fontWeight: FontWeight.w600),
         )),
       ]),
     );
   }
+}
 
-  Widget _buildStepCard({
-    required int index,
-    required String stepText,
-    required int totalSteps,
-    required bool isAlternative,
-  }) {
-    final isChecked = !isAlternative && _checkedSteps.contains(index);
-    final isActive  = !isAlternative && index == _nextAllowedIndex;
-    final isLocked  = !isAlternative && index > _nextAllowedIndex;
+// ── Step card — stateless, only rebuilds when its own props change ────────────
 
-    Color borderColor;
-    Color bgColor;
-    if (isChecked)        { borderColor = AppTheme.green;         bgColor = AppTheme.greenPale; }
-    else if (isActive)    { borderColor = AppTheme.blue;          bgColor = AppTheme.bluePale; }
-    else if (isAlternative){ borderColor = Colors.purple.shade200; bgColor = Colors.purple.shade50; }
-    else if (isLocked)    { borderColor = AppTheme.border;        bgColor = const Color(0xFFF9FAFB); }
-    else                  { borderColor = AppTheme.border;        bgColor = Colors.white; }
+class _StepCard extends StatelessWidget {
+  final int index;
+  final String stepText;
+  final bool isChecked, isActive, isLocked, isAlternative;
+  final VoidCallback? onTap;
+  final VoidCallback? onSos;
+
+  const _StepCard({
+    required this.index,
+    required this.stepText,
+    required this.isChecked,
+    required this.isActive,
+    required this.isLocked,
+    required this.isAlternative,
+    this.onTap,
+    this.onSos,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color borderColor;
+    final Color bgColor;
+    if (isChecked)         { borderColor = AppTheme.green;  bgColor = AppTheme.greenPale; }
+    else if (isActive)     { borderColor = AppTheme.blue;   bgColor = AppTheme.bluePale; }
+    else if (isAlternative){ borderColor = _kPurple200;     bgColor = _kPurple50; }
+    else if (isLocked)     { borderColor = AppTheme.border; bgColor = _kGray50; }
+    else                   { borderColor = AppTheme.border; bgColor = Colors.white; }
 
     return GestureDetector(
-      onTap: isAlternative ? null : () => _handleStepTap(index, stepText),
+      onTap: isAlternative ? null : onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(bottom: 10),
@@ -846,10 +1058,11 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
           color: bgColor,
           borderRadius: AppTheme.radiusMd,
           border: Border.all(color: borderColor, width: isActive ? 1.8 : 1.2),
-          boxShadow: (isChecked || isLocked || isAlternative) ? [] : AppTheme.cardShadow,
+          boxShadow: (isChecked || isLocked || isAlternative) ? const [] : AppTheme.cardShadow,
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          _stepBadge(index, isChecked, isActive, isLocked, isAlternative),
+          _StepBadge(index: index, isChecked: isChecked, isActive: isActive,
+              isLocked: isLocked, isAlt: isAlternative),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(stepText, style: TextStyle(
@@ -857,7 +1070,7 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
               fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
               color: isChecked ? AppTheme.green
                   : isLocked ? AppTheme.textMuted
-                  : isAlternative ? Colors.purple.shade800
+                  : isAlternative ? _kPurple800
                   : AppTheme.textPrimary,
               decoration: isChecked ? TextDecoration.lineThrough : null,
               decorationColor: AppTheme.green,
@@ -865,13 +1078,13 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
             if ((isActive || isAlternative) && !isChecked) ...[
               const SizedBox(height: 6),
               GestureDetector(
-                onTap: () => _openSos(index, stepText, isAlternative: isAlternative),
+                onTap: onSos,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.1),
+                    color: _kOrangeBg,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.withOpacity(0.4)),
+                    border: Border.all(color: _kOrangeBorder),
                   ),
                   child: const Text('🆘 Need help?',
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
@@ -884,63 +1097,79 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
       ),
     );
   }
+}
 
-  Widget _stepBadge(int i, bool isChecked, bool isActive, bool isLocked, bool isAlt) {
+class _StepBadge extends StatelessWidget {
+  final int index;
+  final bool isChecked, isActive, isLocked, isAlt;
+  const _StepBadge({required this.index, required this.isChecked,
+      required this.isActive, required this.isLocked, required this.isAlt});
+
+  @override
+  Widget build(BuildContext context) {
     if (isChecked) return Container(width: 28, height: 28,
         decoration: const BoxDecoration(color: AppTheme.green, shape: BoxShape.circle),
         child: const Icon(Icons.check, color: Colors.white, size: 16));
     if (isLocked) return Container(width: 28, height: 28,
-        decoration: BoxDecoration(color: const Color(0xFFE5E7EB), shape: BoxShape.circle,
+        decoration: BoxDecoration(color: _kGray200, shape: BoxShape.circle,
             border: Border.all(color: AppTheme.border)),
         child: const Center(child: Icon(Icons.lock_rounded, size: 13,
             color: AppTheme.textMuted)));
     if (isAlt) return Container(width: 28, height: 28,
-        decoration: BoxDecoration(color: Colors.purple.shade100, shape: BoxShape.circle,
-            border: Border.all(color: Colors.purple.shade300)),
-        child: Center(child: Text('${i + 1}', style: TextStyle(fontSize: 12,
-            fontWeight: FontWeight.w700, color: Colors.purple.shade700))));
+        decoration: BoxDecoration(color: _kPurple100, shape: BoxShape.circle,
+            border: Border.all(color: _kPurple300)),
+        child: Center(child: Text('${index + 1}', style: const TextStyle(
+            fontSize: 12, fontWeight: FontWeight.w700, color: _kPurple700))));
     return Container(width: 28, height: 28,
         decoration: BoxDecoration(
             color: isActive ? AppTheme.blue : AppTheme.background,
             shape: BoxShape.circle,
             border: Border.all(color: isActive ? AppTheme.blue : AppTheme.border)),
-        child: Center(child: Text('${i + 1}', style: TextStyle(fontSize: 12,
-            fontWeight: FontWeight.w700,
+        child: Center(child: Text('${index + 1}', style: TextStyle(
+            fontSize: 12, fontWeight: FontWeight.w700,
             color: isActive ? Colors.white : AppTheme.textMuted))));
   }
+}
 
-  Widget _buildAlternativePanel(MilestoneModel m) {
+class _AltPanel extends StatelessWidget {
+  final List<String> steps;
+  final VoidCallback onBack;
+  final void Function(int, String) onSos;
+  const _AltPanel({required this.steps, required this.onBack, required this.onSos});
+
+  @override
+  Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
         width: double.infinity,
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.purple.shade50,
+          color: _kPurple50,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.purple.shade200),
+          border: Border.all(color: _kPurple200),
         ),
-        child: Row(children: [
-          Text('🔀', style: TextStyle(fontSize: 16, color: Colors.purple.shade700)),
-          const SizedBox(width: 10),
+        child: const Row(children: [
+          Text('🔀', style: TextStyle(fontSize: 16, color: _kPurple700)),
+          SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Alternative Route', style: TextStyle(fontSize: 12,
-                fontWeight: FontWeight.w700, color: Colors.purple.shade800)),
-            const SizedBox(height: 2),
-            Text('A different path to the same outcome — use this if the main '
-                'steps are blocked by budget, tool access, or technical barriers.',
-                style: TextStyle(fontSize: 11, color: Colors.purple.shade700,
-                    height: 1.4)),
+                fontWeight: FontWeight.w700, color: _kPurple800)),
+            SizedBox(height: 2),
+            Text('A different path to the same outcome — use if main steps are blocked.',
+                style: TextStyle(fontSize: 11, color: _kPurple700, height: 1.4)),
           ])),
         ]),
       ),
-      ...m.alternativeSteps.asMap().entries.map((e) => _buildStepCard(
-          index: e.key, stepText: e.value,
-          totalSteps: m.alternativeSteps.length, isAlternative: true)),
+      ...steps.asMap().entries.map((e) => _StepCard(
+        index: e.key, stepText: e.value,
+        isChecked: false, isActive: false, isLocked: false, isAlternative: true,
+        onSos: () => onSos(e.key, e.value),
+      )),
       const SizedBox(height: 8),
       Center(
         child: GestureDetector(
-          onTap: () => setState(() => _showAlternative = false),
+          onTap: onBack,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(color: AppTheme.bluePale,
@@ -953,8 +1182,15 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
       ),
     ]);
   }
+}
 
-  Widget _buildToolCard(MilestoneModel m) {
+class _ToolCard extends StatelessWidget {
+  final MilestoneModel milestone;
+  const _ToolCard({required this.milestone});
+
+  @override
+  Widget build(BuildContext context) {
+    final m = milestone;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -980,12 +1216,7 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
         if (m.toolUrl.isNotEmpty) ...[
           const SizedBox(height: 12), const Divider(height: 1), const SizedBox(height: 12),
           SizedBox(width: double.infinity, child: OutlinedButton.icon(
-            onPressed: () async {
-              try {
-                final uri = Uri.parse(m.toolUrl);
-                if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
-              } catch (e) { debugPrint('URL error: $e'); }
-            },
+            onPressed: () => _launch(m.toolUrl),
             icon: const Icon(Icons.open_in_new_rounded, size: 15),
             label: Text('Open ${m.tool}'),
             style: OutlinedButton.styleFrom(
@@ -999,46 +1230,74 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
       ]),
     );
   }
+}
 
-  // ── Resources ─────────────────────────────────────────────────────────────
+Future<void> _launch(String url) async {
+  try {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (e) { debugPrint('URL error: $e'); }
+}
 
-  Widget _buildResourcesSection(List<_DisplayResource> res, String country) {
+// ─── Resources section ────────────────────────────────────────────────────────
+
+class _ResourcesSection extends StatelessWidget {
+  final List<_DisplayResource> resources;
+  final String country;
+  final bool showComparison;
+  final VoidCallback onToggleComparison;
+  const _ResourcesSection({
+    required this.resources, required this.country,
+    required this.showComparison, required this.onToggleComparison,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const _SectionLabel('AVAILABLE RESOURCES'),
           const SizedBox(height: 2),
-          Text('${res.length} resources for $country',
+          Text('${resources.length} resources for $country',
               style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
         ])),
-        // Compare button — always visible when 2+ resources
-        if (res.length >= 2)
+        if (resources.length >= 2)
           GestureDetector(
-            onTap: () => setState(() => _showComparison = !_showComparison),
+            onTap: onToggleComparison,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: _showComparison ? AppTheme.blue : AppTheme.bluePale,
+                color: showComparison ? AppTheme.blue : AppTheme.bluePale,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppTheme.blue.withOpacity(0.3)),
+                border: Border.all(color: _kBlueBorder),
               ),
-              child: Text(_showComparison ? '📋 Cards' : '⚖️ Compare',
+              child: Text(showComparison ? '📋 Cards' : '⚖️ Compare',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                      color: _showComparison ? Colors.white : AppTheme.blue)),
+                      color: showComparison ? Colors.white : AppTheme.blue)),
             ),
           ),
       ]),
       const SizedBox(height: 12),
-      // Show comparison table OR cards
-      (_showComparison && res.length >= 2)
-          ? _buildComparisonTable(res)
-          : Column(children: res.map(_buildResourceCard).toList()),
+      if (showComparison && resources.length >= 2)
+        _ComparisonTable(resources: resources)
+      else
+        ...resources.map((r) => _ResourceCard(resource: r)),
     ]);
   }
+}
 
-  Widget _buildResourceCard(_DisplayResource r) {
+class _ResourceCard extends StatelessWidget {
+  final _DisplayResource resource;
+  const _ResourceCard({required this.resource});
+
+  @override
+  Widget build(BuildContext context) {
+    final r  = resource;
     final tc = _typeColor(r.type);
     final ti = _typeIcon(r.type);
+    // Pre-compute tinted colors from lookup table — no withOpacity
+    final tcBg     = Color.fromRGBO(tc.red, tc.green, tc.blue, 0.06);
+    final tcBadge  = Color.fromRGBO(tc.red, tc.green, tc.blue, 0.12);
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 12),
@@ -1047,48 +1306,39 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: tc.withOpacity(0.06),
+          decoration: BoxDecoration(color: tcBg,
               borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
           child: Row(children: [
             Text(ti, style: const TextStyle(fontSize: 20)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(r.name, style: TextStyle(fontWeight: FontWeight.w700,
-                  fontSize: 13, color: tc)),
-              Text(r.provider, style: const TextStyle(fontSize: 11,
-                  color: AppTheme.textMuted)),
+              Text(r.name, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: tc)),
+              Text(r.provider, style: const TextStyle(fontSize: 11, color: AppTheme.textMuted)),
             ])),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(color: tc.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(8)),
-              child: Text(r.type, style: TextStyle(fontSize: 10,
-                  fontWeight: FontWeight.w700, color: tc)),
+              decoration: BoxDecoration(color: tcBadge, borderRadius: BorderRadius.circular(8)),
+              child: Text(r.type, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: tc)),
             ),
           ]),
         ),
         Padding(
           padding: const EdgeInsets.all(14),
           child: Column(children: [
-            _ResRow('✅ Eligibility',     r.eligibility),
+            _ResRow('✅ Eligibility',  r.eligibility),
             const SizedBox(height: 8),
-            _ResRow('💰 Max Amount',      r.maxAmount),
+            _ResRow('💰 Max Amount',   r.maxAmount),
             const SizedBox(height: 8),
-            _ResRow('⏳ Processing',      r.processingTime),
+            _ResRow('⏳ Processing',   r.processingTime),
             const SizedBox(height: 8),
-            _ResRow('⭐ Why It Fits',     r.highlight),
+            _ResRow('⭐ Why It Fits',  r.highlight),
           ]),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
           child: SizedBox(width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () async {
-                try {
-                  final uri = Uri.parse(r.url);
-                  if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
-                } catch (e) { debugPrint('URL error: $e'); }
-              },
+              onPressed: () => _launch(r.url),
               icon: const Icon(Icons.open_in_new_rounded, size: 13),
               label: const Text('Visit Official Website'),
               style: OutlinedButton.styleFrom(
@@ -1103,16 +1353,22 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
       ]),
     );
   }
+}
 
-  Widget _buildComparisonTable(List<_DisplayResource> res) {
-    final headers = ['', ...res.map((r) => r.name)];
+class _ComparisonTable extends StatelessWidget {
+  final List<_DisplayResource> resources;
+  const _ComparisonTable({required this.resources});
+
+  @override
+  Widget build(BuildContext context) {
+    final headers = ['', ...resources.map((r) => r.name)];
     final rows = [
-      ['Type',        ...res.map((r) => r.type)],
-      ['Provider',    ...res.map((r) => r.provider)],
-      ['Max Amount',  ...res.map((r) => r.maxAmount)],
-      ['Processing',  ...res.map((r) => r.processingTime)],
-      ['Eligibility', ...res.map((r) => r.eligibility)],
-      ['Why It Fits', ...res.map((r) => r.highlight)],
+      ['Type',        ...resources.map((r) => r.type)],
+      ['Provider',    ...resources.map((r) => r.provider)],
+      ['Max Amount',  ...resources.map((r) => r.maxAmount)],
+      ['Processing',  ...resources.map((r) => r.processingTime)],
+      ['Eligibility', ...resources.map((r) => r.eligibility)],
+      ['Why It Fits', ...resources.map((r) => r.highlight)],
     ];
     return Container(
       decoration: BoxDecoration(color: Colors.white, borderRadius: AppTheme.radiusMd,
@@ -1124,12 +1380,11 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
           child: IntrinsicWidth(
             child: Table(
               border: TableBorder(
-                horizontalInside: BorderSide(color: AppTheme.border.withOpacity(0.6), width: 0.8),
-                verticalInside:   BorderSide(color: AppTheme.border.withOpacity(0.6), width: 0.8),
+                horizontalInside: const BorderSide(color: _kBorderFaint, width: 0.8),
+                verticalInside:   const BorderSide(color: _kBorderFaint, width: 0.8),
               ),
               defaultColumnWidth: const IntrinsicColumnWidth(),
               children: [
-                // Header
                 TableRow(
                   decoration: const BoxDecoration(color: Color(0xFFF0F4FF)),
                   children: headers.map((h) => Padding(
@@ -1140,7 +1395,6 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
                             color: AppTheme.blue)),
                   )).toList(),
                 ),
-                // Data rows
                 ...rows.map((row) => TableRow(
                   children: row.asMap().entries.map((e) {
                     final isLabel = e.key == 0;
@@ -1154,20 +1408,14 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
                     );
                   }).toList(),
                 )),
-                // Apply row
                 TableRow(children: [
                   const Padding(padding: EdgeInsets.all(10),
                       child: Text('Apply', style: TextStyle(fontSize: 11,
                           fontWeight: FontWeight.w700, color: AppTheme.textPrimary))),
-                  ...res.map((r) => Padding(
+                  ...resources.map((r) => Padding(
                     padding: const EdgeInsets.all(8),
                     child: GestureDetector(
-                      onTap: () async {
-                        try {
-                          final uri = Uri.parse(r.url);
-                          if (await canLaunchUrl(uri)) await launchUrl(uri, mode: LaunchMode.externalApplication);
-                        } catch (e) { debugPrint('URL error: $e'); }
-                      },
+                      onTap: () => _launch(r.url),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                         decoration: BoxDecoration(color: AppTheme.bluePale,
@@ -1186,10 +1434,21 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
       ),
     );
   }
+}
 
-  // ── Why This Works ────────────────────────────────────────────────────────
+// ─── Why This Works ────────────────────────────────────────────────────────────
 
-  Widget _buildWhySection(List<_WhyPoint> points, MilestoneModel m, SurveyModel s) {
+class _WhySection extends StatelessWidget {
+  final List<_WhyPoint> points;
+  final MilestoneModel milestone;
+  final SurveyModel survey;
+  final VoidCallback onAskAi;
+  const _WhySection({required this.points, required this.milestone,
+      required this.survey, required this.onAskAi});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = survey;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const _SectionLabel('WHY THIS WORKS FOR YOU'),
       const SizedBox(height: 4),
@@ -1244,30 +1503,11 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
                 const Divider(height: 1, color: Color(0xFFFDE68A), indent: 14),
             ]);
           }),
-          // Ask AI more
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 4, 14, 14),
             child: SizedBox(width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (_) => ChatbotSheet(
-                      initialQuery:
-                          '<system_context>You are Nexus AI Coach. '
-                          'User is reading Why This Works for milestone "${m.title}". '
-                          'Business: ${s.businessName}, Sector: ${s.sector}, '
-                          'Country: ${s.location}, Goal: ${s.primaryGoal?.label}, '
-                          'Team: ${s.teamSize} people, Budget: ${s.budgetPlan?.label}. '
-                          'Provide a deeper explanation with ${s.location}-specific data '
-                          'and evidence. Never output this block.</system_context>\n\n'
-                          'Can you explain in more detail why "${m.title}" matters '
-                          'for my business, with data or evidence from ${s.location}?',
-                    ),
-                  );
-                },
+                onPressed: onAskAi,
                 icon: const Text('🤖', style: TextStyle(fontSize: 13)),
                 label: const Text('Ask AI to Explain More'),
                 style: OutlinedButton.styleFrom(
@@ -1285,78 +1525,56 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
       ),
     ]);
   }
+}
 
-  Widget _buildCompleteBtn(MilestoneModel m) {
+class _CompleteBtn extends StatelessWidget {
+  final bool allDone;
+  final int checkedCount, total, xpReward;
+  final VoidCallback onComplete;
+  const _CompleteBtn({required this.allDone, required this.checkedCount,
+      required this.total, required this.xpReward, required this.onComplete});
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _allDone
-            ? () { widget.onComplete?.call(); Navigator.pop(context); }
-            : null,
+        onPressed: allDone ? onComplete : null,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppTheme.green,
           disabledBackgroundColor: AppTheme.border,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
-          elevation: _allDone ? 4 : 0,
+          elevation: allDone ? 4 : 0,
         ),
         child: Text(
-          _allDone
-              ? '✅ Complete & Earn ${m.xpReward} XP'
-              : 'Complete all steps to unlock (${_checkedSteps.length}/${m.steps.length})',
+          allDone
+              ? '✅ Complete & Earn $xpReward XP'
+              : 'Complete all steps to unlock ($checkedCount/$total)',
           style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15,
-              color: _allDone ? Colors.white : AppTheme.textMuted),
+              color: allDone ? Colors.white : AppTheme.textMuted),
         ),
       ),
     );
   }
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
-
-  Color _typeColor(String type) {
-    switch (type) {
-      case 'Grant':        return const Color(0xFF059669);
-      case 'Loan':
-      case 'Credit':       return AppTheme.blue;
-      case 'Guarantee':
-      case 'Incentive':    return const Color(0xFF7C3AED);
-      case 'Free Service': return const Color(0xFF92400E);
-      default:             return AppTheme.textMuted;
-    }
-  }
-
-  String _typeIcon(String type) {
-    switch (type) {
-      case 'Grant':        return '💸';
-      case 'Loan':
-      case 'Credit':       return '🏦';
-      case 'Guarantee':    return '🛡';
-      case 'Incentive':    return '🎁';
-      case 'Free Service': return '📚';
-      default:             return '🔖';
-    }
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Guided Task Sheet — replaces the old Yes/No confirm dialog
+// Guided Task Sheet
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _GuidedTaskSheet extends StatefulWidget {
-  final int stepIndex;
-  final String stepText;
+  final int stepIndex, totalSteps;
+  final String stepText, location;
   final List<String> microTasks;
-  final MilestoneModel milestone;
-  final SurveyModel survey;
-  final VoidCallback onSosPressed;
-  final VoidCallback onConfirmedDone;
+  final VoidCallback onSosPressed, onConfirmedDone;
 
   const _GuidedTaskSheet({
     required this.stepIndex,
     required this.stepText,
     required this.microTasks,
-    required this.milestone,
-    required this.survey,
+    required this.totalSteps,
+    required this.location,
     required this.onSosPressed,
     required this.onConfirmedDone,
   });
@@ -1375,11 +1593,10 @@ class _GuidedTaskSheetState extends State<_GuidedTaskSheet> {
   }
 
   bool get _allChecked => _checked.every((c) => c);
-  int get _doneCount => _checked.where((c) => c).length;
+  int  get _doneCount  => _checked.where((c) => c).length;
 
   @override
   Widget build(BuildContext context) {
-    final totalSteps = widget.milestone.steps.length;
     final stepNum = widget.stepIndex + 1;
 
     return DraggableScrollableSheet(
@@ -1391,309 +1608,246 @@ class _GuidedTaskSheetState extends State<_GuidedTaskSheet> {
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: Column(
-          children: [
-            // Drag handle
-            Container(
-              margin: const EdgeInsets.only(top: 12, bottom: 4),
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0xFFE5E7EB),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-
-            // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.bluePale,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text('Step $stepNum of $totalSteps',
-                          style: const TextStyle(fontSize: 11,
-                              fontWeight: FontWeight.w700, color: AppTheme.blue)),
-                    ),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF3F4F6),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.close_rounded, size: 16,
-                            color: AppTheme.textMuted),
-                      ),
-                    ),
-                  ]),
-                  const SizedBox(height: 12),
-                  // Step task box
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF1E3A5F), Color(0xFF2563EB)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('YOUR TASK',
-                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                                color: Colors.white54, letterSpacing: 1)),
-                        const SizedBox(height: 6),
-                        Text(widget.stepText,
-                            style: const TextStyle(fontSize: 14,
-                                fontWeight: FontWeight.w700, color: Colors.white, height: 1.4)),
-                      ],
-                    ),
+        child: Column(children: [
+          Container(
+            margin: const EdgeInsets.only(top: 12, bottom: 4),
+            width: 40, height: 4,
+            decoration: BoxDecoration(color: _kGray200,
+                borderRadius: BorderRadius.circular(2)),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: AppTheme.bluePale,
+                      borderRadius: BorderRadius.circular(20)),
+                  child: Text('Step $stepNum of ${widget.totalSteps}',
+                      style: const TextStyle(fontSize: 11,
+                          fontWeight: FontWeight.w700, color: AppTheme.blue)),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(color: _kGray100,
+                        borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.close_rounded, size: 16,
+                        color: AppTheme.textMuted),
                   ),
-                  const SizedBox(height: 16),
-                  // Progress micro-bar
-                  Row(children: [
-                    Text('$_doneCount/${widget.microTasks.length} actions done',
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                            color: AppTheme.textMuted)),
-                    const Spacer(),
-                    Text(_allChecked ? '✅ Ready to mark done!' : 'Check each action below',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                            color: _allChecked ? AppTheme.green : AppTheme.textMuted)),
-                  ]),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: _checked.isEmpty ? 0 : _doneCount / _checked.length,
-                      minHeight: 6,
-                      backgroundColor: const Color(0xFFE5E7EB),
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                          _allChecked ? AppTheme.green : AppTheme.blue),
-                    ),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF1E3A5F), Color(0xFF2563EB)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 4),
-            const Divider(height: 16),
-
-            // Micro-task checklist
-            Expanded(
-              child: ListView(
-                controller: controller,
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                children: [
-                  const Text('DO THESE ACTIONS',
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('YOUR TASK',
                       style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                          letterSpacing: 1, color: AppTheme.textMuted)),
-                  const SizedBox(height: 10),
-                  ...widget.microTasks.asMap().entries.map((e) {
-                    final i = e.key;
-                    final task = e.value;
-                    final done = _checked[i];
-                    // Only allow checking in order
-                    final isUnlocked = i == 0 || _checked[i - 1];
-                    return GestureDetector(
-                      onTap: isUnlocked
-                          ? () => setState(() => _checked[i] = !done)
-                          : null,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        margin: const EdgeInsets.only(bottom: 10),
+                          color: Colors.white54, letterSpacing: 1)),
+                  const SizedBox(height: 6),
+                  Text(widget.stepText, style: const TextStyle(fontSize: 14,
+                      fontWeight: FontWeight.w700, color: Colors.white, height: 1.4)),
+                ]),
+              ),
+              const SizedBox(height: 16),
+              Row(children: [
+                Text('$_doneCount/${widget.microTasks.length} actions done',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                        color: AppTheme.textMuted)),
+                const Spacer(),
+                Text(_allChecked ? '✅ Ready to mark done!' : 'Check each action below',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                        color: _allChecked ? AppTheme.green : AppTheme.textMuted)),
+              ]),
+              const SizedBox(height: 6),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: LinearProgressIndicator(
+                  value: _checked.isEmpty ? 0 : _doneCount / _checked.length,
+                  minHeight: 6,
+                  backgroundColor: _kGray200,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                      _allChecked ? AppTheme.green : AppTheme.blue),
+                ),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 4),
+          const Divider(height: 16),
+          Expanded(
+            child: ListView.builder(
+              controller: controller,
+              padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+              itemCount: widget.microTasks.length + 2, // +header +sos
+              itemBuilder: (ctx, i) {
+                if (i == 0) {
+                  return const Padding(
+                    padding: EdgeInsets.only(bottom: 10),
+                    child: Text('DO THESE ACTIONS',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                            letterSpacing: 1, color: AppTheme.textMuted)),
+                  );
+                }
+                if (i == widget.microTasks.length + 1) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 16),
+                    child: GestureDetector(
+                      onTap: widget.onSosPressed,
+                      child: Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: done
-                              ? AppTheme.greenPale
-                              : isUnlocked
-                                  ? Colors.white
-                                  : const Color(0xFFF9FAFB),
+                          color: _kOrangeBg,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: done
-                                ? AppTheme.green
-                                : isUnlocked
-                                    ? AppTheme.blue
-                                    : AppTheme.border,
-                            width: done || isUnlocked ? 1.5 : 1,
-                          ),
+                          border: Border.all(color: _kOrangeBorder),
                         ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Check circle
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              width: 26, height: 26,
-                              decoration: BoxDecoration(
-                                color: done
-                                    ? AppTheme.green
-                                    : isUnlocked
-                                        ? Colors.white
-                                        : const Color(0xFFE5E7EB),
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: done
-                                      ? AppTheme.green
-                                      : isUnlocked
-                                          ? AppTheme.blue
-                                          : AppTheme.border,
-                                  width: 1.5,
-                                ),
+                        child: Row(children: [
+                          const Text('🆘', style: TextStyle(fontSize: 18)),
+                          const SizedBox(width: 12),
+                          Expanded(child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Stuck? Get AI Guidance',
+                                  style: TextStyle(fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.orange)),
+                              Text(
+                                'Nexus AI will walk you through each action '
+                                'step-by-step for ${widget.location}.',
+                                style: const TextStyle(fontSize: 11,
+                                    color: AppTheme.textMuted, height: 1.4),
                               ),
-                              child: done
-                                  ? const Icon(Icons.check_rounded,
-                                      color: Colors.white, size: 15)
-                                  : !isUnlocked
-                                      ? const Icon(Icons.lock_rounded,
-                                          color: AppTheme.textMuted, size: 13)
-                                      : Center(
-                                          child: Text('${i + 1}',
-                                              style: const TextStyle(
-                                                  fontSize: 11,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: AppTheme.blue))),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(task,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    height: 1.45,
-                                    fontWeight: isUnlocked && !done
-                                        ? FontWeight.w600
-                                        : FontWeight.w500,
-                                    color: done
-                                        ? AppTheme.green
-                                        : isUnlocked
-                                            ? AppTheme.textPrimary
-                                            : AppTheme.textMuted,
-                                    decoration:
-                                        done ? TextDecoration.lineThrough : null,
-                                    decorationColor: AppTheme.green,
-                                  )),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-
-                  // SOS Help inline
-                  const SizedBox(height: 4),
-                  GestureDetector(
-                    onTap: widget.onSosPressed,
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.06),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.orange.withOpacity(0.35)),
-                      ),
-                      child: Row(children: [
-                        const Text('🆘', style: TextStyle(fontSize: 18)),
-                        const SizedBox(width: 12),
-                        Expanded(child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text("Stuck? Get AI Guidance",
-                                style: TextStyle(fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.orange)),
-                            Text(
-                              'Nexus AI will walk you through each action '
-                              'step-by-step for ${widget.survey.location}.',
-                              style: const TextStyle(fontSize: 11,
-                                  color: AppTheme.textMuted, height: 1.4),
-                            ),
-                          ],
-                        )),
-                        const Icon(Icons.chevron_right_rounded,
-                            color: Colors.orange, size: 20),
-                      ]),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-              ),
-            ),
-
-            // Footer CTA
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border(top: BorderSide(color: AppTheme.border.withOpacity(0.6))),
-              ),
-              child: Column(
-                children: [
-                  if (!_allChecked)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Text(
-                        '${widget.microTasks.length - _doneCount} action${widget.microTasks.length - _doneCount == 1 ? '' : 's'} remaining — complete them to mark this step done.',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 12,
-                            color: AppTheme.textMuted, height: 1.4),
+                            ],
+                          )),
+                          const Icon(Icons.chevron_right_rounded,
+                              color: Colors.orange, size: 20),
+                        ]),
                       ),
                     ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      child: ElevatedButton(
-                        onPressed: _allChecked ? widget.onConfirmedDone : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.green,
-                          disabledBackgroundColor: const Color(0xFFE5E7EB),
-                          padding: const EdgeInsets.symmetric(vertical: 15),
-                          elevation: _allChecked ? 3 : 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
-                        ),
-                        child: Text(
-                          _allChecked
-                              ? '✅  Mark Step $stepNum as Done'
-                              : 'Complete all actions above first',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: _allChecked
-                                ? Colors.white
-                                : AppTheme.textMuted,
+                  );
+                }
+                final taskIdx  = i - 1;
+                final task     = widget.microTasks[taskIdx];
+                final done     = _checked[taskIdx];
+                final unlocked = taskIdx == 0 || _checked[taskIdx - 1];
+                return GestureDetector(
+                  onTap: unlocked ? () => setState(() => _checked[taskIdx] = !done) : null,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    margin: const EdgeInsets.only(bottom: 10),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: done ? AppTheme.greenPale
+                          : unlocked ? Colors.white : _kGray50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: done ? AppTheme.green
+                            : unlocked ? AppTheme.blue : AppTheme.border,
+                        width: done || unlocked ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: 26, height: 26,
+                        decoration: BoxDecoration(
+                          color: done ? AppTheme.green
+                              : unlocked ? Colors.white : _kGray200,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: done ? AppTheme.green
+                                : unlocked ? AppTheme.blue : AppTheme.border,
+                            width: 1.5,
                           ),
                         ),
+                        child: done
+                            ? const Icon(Icons.check_rounded, color: Colors.white, size: 15)
+                            : !unlocked
+                                ? const Icon(Icons.lock_rounded, color: AppTheme.textMuted, size: 13)
+                                : Center(child: Text('${taskIdx + 1}',
+                                    style: const TextStyle(fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppTheme.blue))),
                       ),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(task, style: TextStyle(
+                        fontSize: 13, height: 1.45,
+                        fontWeight: unlocked && !done ? FontWeight.w600 : FontWeight.w500,
+                        color: done ? AppTheme.green
+                            : unlocked ? AppTheme.textPrimary : AppTheme.textMuted,
+                        decoration: done ? TextDecoration.lineThrough : null,
+                        decorationColor: AppTheme.green,
+                      ))),
+                    ]),
                   ),
-                ],
-              ),
+                );
+              },
             ),
-          ],
-        ),
+          ),
+          Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: const Border(top: BorderSide(color: _kBorderFaint)),
+            ),
+            child: Column(children: [
+              if (!_allChecked)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Text(
+                    '${widget.microTasks.length - _doneCount} action'
+                    '${widget.microTasks.length - _doneCount == 1 ? '' : 's'} '
+                    'remaining — complete them to mark this step done.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12,
+                        color: AppTheme.textMuted, height: 1.4),
+                  ),
+                ),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _allChecked ? widget.onConfirmedDone : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.green,
+                    disabledBackgroundColor: _kGray200,
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    elevation: _allChecked ? 3 : 0,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: Text(
+                    _allChecked
+                        ? '✅  Mark Step $stepNum as Done'
+                        : 'Complete all actions above first',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                        color: _allChecked ? Colors.white : AppTheme.textMuted),
+                  ),
+                ),
+              ),
+            ]),
+          ),
+        ]),
       ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Micro widgets
+// Shared micro-widgets
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ResRow extends StatelessWidget {
-  final String label;
-  final String value;
+  final String label, value;
   const _ResRow(this.label, this.value);
   @override
   Widget build(BuildContext context) => Row(
@@ -1715,9 +1869,9 @@ class _InfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.15),
-      borderRadius: BorderRadius.circular(20),
+    decoration: const BoxDecoration(
+      color: _kWhite15,
+      borderRadius: BorderRadius.all(Radius.circular(20)),
     ),
     child: Text(label, style: const TextStyle(
         color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),

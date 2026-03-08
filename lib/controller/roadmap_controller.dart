@@ -121,10 +121,12 @@ class RoadmapController extends StateNotifier<RoadmapState> {
                 steps: loadedSteps,
               );
             }).toList();
+            
 
             // 🔥 SELF-HEALING FIX:
             // If the loaded data has NO steps (old data), delete it and regenerate!
             if (savedList.isNotEmpty && savedList.first.steps.isEmpty) {
+              
               print('⚠ Found legacy roadmap (empty steps). Deleting and regenerating...');
               
               // 1. Set loading state
@@ -412,10 +414,6 @@ class RoadmapController extends StateNotifier<RoadmapState> {
       }
     }
   }
-
-
-
-
 
 }
 
