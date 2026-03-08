@@ -388,6 +388,35 @@ class RoadmapController extends StateNotifier<RoadmapState> {
           .eq('id', id);
     }
   }
+  Future<void> updateMilestoneProgress(String milestoneId, int newCurrentStep) async {
+    // 1. Optimistic Update: Update UI instantly
+    state = state.copyWith(
+      milestones: state.milestones.map((m) {
+        if (m.id == milestoneId) {
+          return m.copyWith(currentStep: newCurrentStep);
+        }
+        return m;
+      }).toList(),
+    );
+
+    // 2. Persist to Database
+    // Only update if it's a real ID (not a temp one)
+    if (!milestoneId.startsWith('temp_')) {
+      try {
+        await Supabase.instance.client
+            .from('user_milestones') //
+            .update({'current_step': newCurrentStep}) // Matches snake_case column
+            .eq('id', milestoneId);
+      } catch (e) {
+        print('Error saving step progress: $e');
+      }
+    }
+  }
+
+
+
+
+
 }
 
 final roadmapControllerProvider =
