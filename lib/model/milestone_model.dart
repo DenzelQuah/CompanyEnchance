@@ -56,6 +56,11 @@ class MilestoneModel {
   final List<String> alternativeSteps; // fallback path if main steps are blocked
   final int currentStep;
 
+  /// micro_tasks[i] = list of sub-actions for steps[i].
+  /// Stored in DB as nested JSONB array for RAG embedding.
+  /// e.g. [["action 1", "action 2"], ["action 1", "action 2"], ...]
+  final List<List<String>> microTasks;
+
   final List<MilestoneResource> resources;
 
   const MilestoneModel({
@@ -75,6 +80,7 @@ class MilestoneModel {
     this.steps = const [],
     this.alternativeSteps = const [],
     this.currentStep = 0,
+    this.microTasks = const [],
     this.resources = const [],
   });
 
@@ -99,6 +105,9 @@ class MilestoneModel {
       alternativeSteps: List<String>.from(
           json['alternative_steps'] ?? json['alternativeSteps'] ?? []),
       currentStep:    json['current_step']   ?? json['currentStep'] ?? 0,
+      microTasks: (json['micro_tasks'] as List<dynamic>? ?? [])
+          .map((e) => List<String>.from(e as List<dynamic>? ?? []))
+          .toList(),
       resources: (json['resources'] as List<dynamic>? ?? [])
           .map((e) => MilestoneResource.fromMap(e as Map<String, dynamic>))
           .toList(),
@@ -132,6 +141,7 @@ class MilestoneModel {
       steps:           steps,
       alternativeSteps: alternativeSteps,
       currentStep:     currentStep ?? this.currentStep,
+      microTasks:      microTasks,
       resources:       resources,
     );
   }
