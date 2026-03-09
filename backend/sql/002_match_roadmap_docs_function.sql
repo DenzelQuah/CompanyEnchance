@@ -23,7 +23,7 @@ begin
     rk.metadata,
     1 - (rk.embedding <=> query_embedding) as similarity
   from public.roadmap_knowledge as rk
-  where rk.user_id = filter_user_id
+  where (rk.user_id = filter_user_id or rk.user_id is null)
     and 1 - (rk.embedding <=> query_embedding) > match_threshold
   order by similarity desc
   limit match_count;

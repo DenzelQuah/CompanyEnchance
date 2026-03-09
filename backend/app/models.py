@@ -32,6 +32,32 @@ class ChatResponse(BaseModel):
     session_id: str
 
 
+class RagSyncRequest(BaseModel):
+    user_id: str = Field(..., description="Supabase auth user id")
+    force: bool = Field(default=False)
+
+    @field_validator("user_id", mode="before")
+    @classmethod
+    def _strip_user_id(cls, value: str) -> str:
+        if value is None:
+            return value
+        if not isinstance(value, str):
+            raise TypeError("Field must be a string.")
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Field cannot be empty.")
+        return cleaned
+
+
+class RagSyncResponse(BaseModel):
+    milestones_scanned: int
+    candidate_docs: int
+    docs_replaced: int
+    docs_skipped_unchanged: int
+    stale_docs_deleted: int
+    chunks_written: int
+
+
 class FinancialSummaryRequest(BaseModel):
     user_id: str = Field(..., description="Supabase auth user id")
     horizon_months: int = Field(default=12, ge=3, le=24)

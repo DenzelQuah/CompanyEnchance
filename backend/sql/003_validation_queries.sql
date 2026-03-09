@@ -37,6 +37,11 @@ select count(*) as missing_chunk_total
 from public.roadmap_knowledge
 where not (metadata ? 'chunk_total');
 
+select count(*) as missing_milestone_id
+from public.roadmap_knowledge
+where (metadata->>'source_type' = 'user_milestone')
+  and not (metadata ? 'milestone_id');
+
 -- 5) Chunk ordering consistency by user/doc
 select
   user_id,
@@ -49,7 +54,28 @@ where metadata ? 'source_doc_id'
 group by user_id, metadata->>'source_doc_id'
 order by chunk_rows desc;
 
--- 6) Optional smoke test (replace values):
+-- 6) Duplicate chunk index per user/doc (should be zero rows)
+select
+  user_id,
+  metadata->>'source_doc_id' as source_doc_id,
+  (metadata->>'chunk_index')::int as chunk_index,
+  count(*) as duplicate_count
+from public.roadmap_knowledge
+where metadata ? 'source_doc_id'
+  and metadata ? 'chunk_index'
+group by user_id, metadata->>'source_doc_id', (metadata->>'chunk_index')::int
+having count(*) > 1;
+
+-- 7) Orphan milestone chunks (should be zero rows)
+select count(*) as orphan_milestone_chunks
+from public.roadmap_knowledge rk
+left join public.user_milestones um
+  on um.id::text = rk.metadata->>'milestone_id'
+ and um.user_id::text = rk.user_id::text
+where rk.metadata->>'source_type' = 'user_milestone'
+  and um.id is null;
+
+-- 8) Optional smoke test (replace values):
 -- select *
 -- from public.match_roadmap_docs(
 --   '00000000-0000-0000-0000-000000000000'::uuid,

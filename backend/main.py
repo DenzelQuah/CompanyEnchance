@@ -18,7 +18,10 @@ from app.models import (
     FinancialSummaryResponse,
     FinancialTargetResponse,
     FinancialTargetUpsertRequest,
+    RagSyncRequest,
+    RagSyncResponse,
 )
+from app.rag_sync_service import RagSyncService
 
 app = FastAPI(title="Roadmap RAG API", version="1.0.0")
 logger = logging.getLogger(__name__)
@@ -34,6 +37,7 @@ app.add_middleware(
 
 chat_service = ChatService()
 financial_service = FinancialService()
+rag_sync_service = RagSyncService()
 
 
 @app.get("/health")
@@ -58,6 +62,26 @@ async def chat(req: ChatRequest) -> ChatResponse:
         raise HTTPException(
             status_code=500,
             detail="Internal server error while processing chat request.",
+        ) from exc
+
+
+@app.post("/rag/sync", response_model=RagSyncResponse)
+async def rag_sync(req: RagSyncRequest) -> RagSyncResponse:
+    try:
+        result = rag_sync_service.sync_user_milestones(
+            user_id=req.user_id,
+            force=req.force,
+        )
+        return RagSyncResponse(**result)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Unexpected /rag/sync failure.")
+        if settings.debug_errors:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while syncing RAG knowledge.",
         ) from exc
 
 

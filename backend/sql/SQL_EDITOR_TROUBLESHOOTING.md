@@ -4,6 +4,8 @@
 1. `001_roadmap_knowledge_table.sql`
 2. `002_match_roadmap_docs_function.sql`
 3. `003_validation_queries.sql`
+4. `009_user_milestones_updated_at_sync_support.sql` (recommended for incremental sync)
+5. `010_optional_align_user_id_uuid.sql` (optional; run only after precheck passes)
 
 ## Common Errors and Fixes
 
