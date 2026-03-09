@@ -410,9 +410,6 @@ class _GoogleButton extends StatelessWidget {
 class _GoogleLogoPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paths = <Color, String>{
-      const Color(0xFF4285F4): 'M20 10.2c0-.6-.1-1.2-.2-1.8H10v3.4h5.6c-.2 1.2-.9 2.2-2 2.9v2.4h3.2c1.9-1.7 3-4.3 3-6.9z',
-    };
     final paint = Paint()..style = PaintingStyle.fill;
     final r = size.width / 2;
     const colors = [Color(0xFF4285F4), Color(0xFF34A853), Color(0xFFFBBC05), Color(0xFFEA4335)];
