@@ -173,6 +173,7 @@ fabric.properties
 .buildlog/
 .history
 .svn/
+.venv/
 
 # API Keys
 .env
@@ -263,6 +264,7 @@ DerivedData/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
 
 
 ## Custom
