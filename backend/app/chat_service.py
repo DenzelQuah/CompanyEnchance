@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from langchain_community.vectorstores import SupabaseVectorStore
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -30,13 +29,6 @@ class ChatService:
             google_api_key=settings.gemini_api_key,
             temperature=0.2,
         )
-        self.vector_store = SupabaseVectorStore(
-            client=self.supabase,
-            embedding=self.embeddings,
-            table_name=settings.rag_table_name,
-            query_name=settings.rag_match_function,
-        )
-
         # "RAG from scratch" style: prompt -> model -> output parser.
         self.prompt = ChatPromptTemplate.from_messages(
             [
@@ -94,14 +86,28 @@ class ChatService:
         return ChatResponse(answer=answer, source_documents=source_documents, session_id=sid)
 
     def _retrieve_documents(self, question: str) -> list[Document]:
-        # Uses SupabaseVectorStore retrieval and applies threshold filtering.
-        scored = self.vector_store.similarity_search_with_relevance_scores(
-            query=question,
-            k=settings.rag_top_k,
-        )
-        docs = [
-            doc for (doc, score) in scored if score is not None and score >= settings.rag_match_threshold
-        ]
+        # Call the RPC directly so argument names/signature match the SQL function.
+        query_embedding = self.embeddings.embed_query(question)
+        rpc_result = self.supabase.rpc(
+            settings.rag_match_function,
+            {
+                "query_embedding": query_embedding,
+                "match_threshold": settings.rag_match_threshold,
+                "match_count": settings.rag_top_k,
+            },
+        ).execute()
+
+        rows = list(rpc_result.data or [])
+        docs: list[Document] = []
+        for row in rows:
+            metadata = dict(row.get("metadata") or {})
+            metadata["similarity"] = row.get("similarity")
+            docs.append(
+                Document(
+                    page_content=str(row.get("content", "")),
+                    metadata=metadata,
+                )
+            )
         return docs
 
     def _format_docs(self, docs: list[Document]) -> str:

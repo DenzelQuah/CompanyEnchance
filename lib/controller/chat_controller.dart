@@ -97,9 +97,9 @@ class ChatController extends StateNotifier<ChatState> {
             .toList(),
       );
       state = state.copyWith(sessionId: result.sessionId);
-    } catch (_) {
+    } catch (e) {
       _appendAssistant(
-        'Unable to reach the AI backend. Check CHAT_API_URL and backend server status.',
+        'Chat backend error: $e',
       );
     } finally {
       state = state.copyWith(isProcessing: false);
