@@ -78,6 +78,11 @@ fastlane/readme.md
 build/
 pytest-cache-files-*
 backend/pytest-cache-files-*
+.dart_tool/dartpad/web_plugin_registrant.dart
+.dart_tool/package_config.json
+.dart_tool/package_graph.json
+**/flutter/generated_plugin_registrant.*
+**/flutter/generated_plugins.cmake
 # If you're building an application, you may want to check-in your pubspec.lock
 pubspec.lock
 
