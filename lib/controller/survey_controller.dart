@@ -14,6 +14,23 @@ class SurveyController extends StateNotifier<SurveyModel> {
     _loadDraft();
   }
 
+  String? _loadedUserId;
+
+  Future<String?> _resolveActiveUserId() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) return user.id;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('survey_session_id');
+  }
+
+  Future<void> ensureLoadedForCurrentUser() async {
+    final currentId = await _resolveActiveUserId();
+    if (currentId == _loadedUserId && state.uniqueId.isNotEmpty) return;
+    _loadedUserId = null;
+    state = const SurveyModel();
+    await _loadDraft();
+  }
+
 // ── Auto-Save & Loading Logic ───────────────────────────────────────────────
 
   /// Checks local storage for a session ID. If found, fetches data from Supabase.
@@ -35,6 +52,7 @@ class SurveyController extends StateNotifier<SurveyModel> {
 
     // 3. Save it locally so the app remembers who we are working with
     await prefs.setString('survey_session_id', currentId);
+    _loadedUserId = currentId;
     
     // 4. Update state with the correct ID immediately
     state = state.copyWith(uniqueId: currentId);
@@ -375,4 +393,5 @@ final surveyControllerProvider =
     StateNotifierProvider<SurveyController, SurveyModel>(
   (_) => SurveyController(),
 );
+
 

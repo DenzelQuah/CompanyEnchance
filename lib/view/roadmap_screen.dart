@@ -4,6 +4,7 @@ import 'package:companyenchancer/view/chatbot_sheet.dart';
 import 'package:companyenchancer/view/milestone_detailscreen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../controller/auth_controller.dart';
 import '../controller/roadmap_controller.dart';
 import '../model/milestone_model.dart';
 import '../model/app_theme.dart';
@@ -14,7 +15,22 @@ class RoadmapScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<AuthState>(authControllerProvider, (previous, next) {
+      if (previous?.userEmail != next.userEmail ||
+          previous?.status != next.status) {
+        ref.read(surveyControllerProvider.notifier).ensureLoadedForCurrentUser();
+        ref.read(roadmapControllerProvider.notifier).ensureLoadedForCurrentUser();
+      }
+    });
+
+    ref.read(surveyControllerProvider.notifier).ensureLoadedForCurrentUser();
+    ref.read(roadmapControllerProvider.notifier).ensureLoadedForCurrentUser();
+
     final state = ref.watch(roadmapControllerProvider);
+    final survey = ref.watch(surveyControllerProvider);
+    final businessName = survey.businessName.trim().isEmpty
+        ? 'Your Business'
+        : survey.businessName.trim();
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -22,7 +38,7 @@ class RoadmapScreen extends ConsumerWidget {
         children: [
           CustomScrollView(
             slivers: [
-              _buildHeader(state),
+              _buildHeader(state, businessName),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 100),
                 sliver: SliverList(
@@ -59,7 +75,7 @@ class RoadmapScreen extends ConsumerWidget {
     );
   }
 
-  SliverAppBar _buildHeader(RoadmapState state) {
+  SliverAppBar _buildHeader(RoadmapState state, String businessName) {
     return SliverAppBar(
       expandedHeight: 170,
       pinned: true,
@@ -99,9 +115,12 @@ class RoadmapScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
-                      "Ahmad's Digital & Export Readiness Path",
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                    Text(
+                      'Roadmap for $businessName',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     ClipRRect(

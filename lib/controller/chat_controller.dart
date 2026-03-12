@@ -58,7 +58,11 @@ class ChatController extends StateNotifier<ChatState> {
     }
   }
 
-  Future<void> sendMessage(String text) async {
+  Future<void> sendMessage(
+    String text, {
+    bool useRag = true,
+    bool allowUpdates = true,
+  }) async {
     final input = text.trim();
     if (input.isEmpty || state.isProcessing) return;
 
@@ -76,6 +80,8 @@ class ChatController extends StateNotifier<ChatState> {
         userId: userId,
         message: input,
         sessionId: state.sessionId,
+        useRag: useRag,
+        allowUpdates: allowUpdates,
       );
 
       final answer = result.answer.isEmpty

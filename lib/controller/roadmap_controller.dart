@@ -32,9 +32,9 @@ class RoadmapState {
 
   static const RoadmapState initial = RoadmapState(
     milestones: [],
-    totalXp: 350,
-    level: 2,
-    levelLabel: 'Emerging Business',
+    totalXp: 0,
+    level: 1,
+    levelLabel: 'Starter',
     isLoading: true,
   );
 
@@ -62,19 +62,47 @@ class RoadmapController extends StateNotifier<RoadmapState> {
     _loadUserRoadmap();
   }
 
+  String? _loadedUserId;
+
+  Future<String?> _resolveActiveUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final user = Supabase.instance.client.auth.currentUser;
+    return user?.id ?? prefs.getString('survey_session_id');
+  }
+
+  Future<void> ensureLoadedForCurrentUser() async {
+    final currentId = await _resolveActiveUserId();
+    if (currentId == _loadedUserId && !state.isLoading) return;
+    if (currentId == null) {
+      if (_loadedUserId != null) {
+        _loadedUserId = null;
+        state = state.copyWith(
+          milestones: [],
+          isLoading: false,
+          detailedStrategy: null,
+        );
+      }
+      return;
+    }
+    _loadedUserId = currentId;
+    state = RoadmapState.initial;
+    await _loadUserRoadmap(forcedId: currentId);
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Load
   // ─────────────────────────────────────────────────────────────────────────
 
-  Future<void> _loadUserRoadmap() async {
-    final prefs = await SharedPreferences.getInstance();
-    final user = Supabase.instance.client.auth.currentUser;
-    final savedId = user?.id ?? prefs.getString('survey_session_id');
+  Future<void> _loadUserRoadmap({String? forcedId}) async {
+    final savedId = forcedId ?? await _resolveActiveUserId();
 
     if (savedId == null) {
+      _loadedUserId = null;
       state = state.copyWith(isLoading: false);
       return;
     }
+
+    _loadedUserId = savedId;
 
     try {
       final supabase = Supabase.instance.client;
@@ -175,7 +203,15 @@ class RoadmapController extends StateNotifier<RoadmapState> {
       }
 
       print('📂 Loaded valid roadmap (${savedList.length} milestones)');
-      state = state.copyWith(milestones: savedList, isLoading: false);
+      final totalXp = _computeTotalXp(savedList);
+      final level = _computeLevel(totalXp);
+      state = state.copyWith(
+        milestones: savedList,
+        isLoading: false,
+        totalXp: totalXp,
+        level: level,
+        levelLabel: _levelLabelFor(level),
+      );
 
       // Backfill micro_tasks for existing rows that were saved before this
       // feature was added. Runs silently in background — UI is already showing.
@@ -395,7 +431,15 @@ class RoadmapController extends StateNotifier<RoadmapState> {
       }
 
       // ── Show milestones immediately — user sees content right away ─────────
-      state = state.copyWith(milestones: uiMilestones, isLoading: false);
+      final totalXp = _computeTotalXp(uiMilestones);
+      final level = _computeLevel(totalXp);
+      state = state.copyWith(
+        milestones: uiMilestones,
+        isLoading: false,
+        totalXp: totalXp,
+        level: level,
+        levelLabel: _levelLabelFor(level),
+      );
       print('✅ Showing ${uiMilestones.length} milestones in UI');
 
       if (dbRecords.isEmpty) return;
@@ -435,7 +479,14 @@ class RoadmapController extends StateNotifier<RoadmapState> {
               resources: m.resources,
             );
           });
-          state = state.copyWith(milestones: patched);
+          final totalXp = _computeTotalXp(patched);
+          final level = _computeLevel(totalXp);
+          state = state.copyWith(
+            milestones: patched,
+            totalXp: totalXp,
+            level: level,
+            levelLabel: _levelLabelFor(level),
+          );
           print('✅ Patched temp IDs with real Supabase UUIDs');
         }
       } catch (e) {
@@ -670,14 +721,14 @@ class RoadmapController extends StateNotifier<RoadmapState> {
 
     _updateMilestoneStatusInDb(milestoneId, 'done');
 
-    final earned = state.milestones
-        .firstWhere((m) => m.id == milestoneId,
-            orElse: () => state.milestones.first)
-        .xpReward;
+    final totalXp = _computeTotalXp(finalMilestones);
+    final level = _computeLevel(totalXp);
 
     state = state.copyWith(
       milestones: finalMilestones,
-      totalXp: state.totalXp + earned,
+      totalXp: totalXp,
+      level: level,
+      levelLabel: _levelLabelFor(level),
     );
   }
 
@@ -719,3 +770,25 @@ final roadmapControllerProvider =
     StateNotifierProvider<RoadmapController, RoadmapState>(
   (_) => RoadmapController(),
 );
+  int _computeTotalXp(List<MilestoneModel> milestones) {
+    return milestones.fold<int>(0, (sum, m) => sum + m.earnedXp);
+  }
+
+  int _computeLevel(int totalXp) => (totalXp ~/ 1000) + 1;
+
+  String _levelLabelFor(int level) {
+    switch (level) {
+      case 1:
+        return 'Starter';
+      case 2:
+        return 'Emerging Business';
+      case 3:
+        return 'Scaling Business';
+      case 4:
+        return 'Growth Leader';
+      case 5:
+        return 'Industry Leader';
+      default:
+        return 'Level $level';
+    }
+  }

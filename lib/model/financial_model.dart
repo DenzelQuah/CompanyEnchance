@@ -65,6 +65,7 @@ class GrantMatch {
   final String agency;
   final String country;
   final String state;
+  final String targetBusinessStage;
   final double maxFundingRm;
   final String deadline;
   final double fitScore;
@@ -78,6 +79,7 @@ class GrantMatch {
     required this.agency,
     required this.country,
     required this.state,
+    required this.targetBusinessStage,
     required this.maxFundingRm,
     required this.deadline,
     required this.fitScore,
@@ -95,6 +97,7 @@ class GrantMatch {
       agency: (map['agency'] as String? ?? '').trim(),
       country: (map['country'] as String? ?? '').trim(),
       state: (map['state'] as String? ?? '').trim(),
+      targetBusinessStage: (map['target_business_stage'] as String? ?? '').trim(),
       maxFundingRm: ((map['max_funding_rm'] as num?) ?? 0).toDouble(),
       deadline: (map['deadline'] as String? ?? '').trim(),
       fitScore: ((map['fit_score'] as num?) ?? 0).toDouble(),

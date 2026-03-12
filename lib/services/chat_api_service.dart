@@ -29,6 +29,8 @@ class ChatApiService {
     required String userId,
     required String message,
     String? sessionId,
+    bool useRag = true,
+    bool allowUpdates = true,
   }) async {
     final client = HttpClient();
     client.connectionTimeout = const Duration(seconds: 10);
@@ -42,6 +44,8 @@ class ChatApiService {
             'user_id': userId,
             'message': message,
             'session_id': sessionId,
+            'use_rag': useRag,
+            'allow_updates': allowUpdates,
           }),
         ),
       );

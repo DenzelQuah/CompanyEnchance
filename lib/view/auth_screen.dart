@@ -106,13 +106,20 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 const SizedBox(height: 48),
                 // Logo
                 Container(
-                  width: 72, height: 72,
+                  width: 72,
+                  height: 72,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: AppTheme.radiusLg,
                     boxShadow: AppTheme.elevatedShadow,
                   ),
-                  child: const Center(child: Text('🌏', style: TextStyle(fontSize: 36))),
+                  child: ClipRRect(
+                    borderRadius: AppTheme.radiusLg,
+                    child: Image.asset(
+                      'assets/images/app_logo.png',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 14),
                 const Text('ASEAN Nexus',

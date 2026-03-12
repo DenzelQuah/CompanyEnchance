@@ -9,8 +9,15 @@ class ChatbotSheet extends ConsumerStatefulWidget {
   /// Optional: If provided, the bot will automatically send this message
   /// when the sheet opens. Used for "SOS" context.
   final String? initialQuery;
+  final bool useRag;
+  final bool allowUpdates;
 
-  const ChatbotSheet({super.key, this.initialQuery});
+  const ChatbotSheet({
+    super.key,
+    this.initialQuery,
+    this.useRag = true,
+    this.allowUpdates = true,
+  });
 
   @override
   ConsumerState<ChatbotSheet> createState() => _ChatbotSheetState();
@@ -19,10 +26,12 @@ class ChatbotSheet extends ConsumerStatefulWidget {
 class _ChatbotSheetState extends ConsumerState<ChatbotSheet> {
   final _inputCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
+  int _lastMessageCount = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     // Auto-send the initial query if it exists (for SOS functionality)
     if (widget.initialQuery != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -45,7 +54,11 @@ class _ChatbotSheetState extends ConsumerState<ChatbotSheet> {
     _inputCtrl.clear();
     
     // 2. Send to controller
-    await ref.read(chatControllerProvider.notifier).sendMessage(text);
+    await ref.read(chatControllerProvider.notifier).sendMessage(
+      text,
+      useRag: widget.useRag,
+      allowUpdates: widget.allowUpdates,
+    );
     
     // 3. Scroll to bottom after a slight delay to allow UI to render new bubbles
     Future.delayed(const Duration(milliseconds: 700), _scrollToBottom);
@@ -65,6 +78,10 @@ class _ChatbotSheetState extends ConsumerState<ChatbotSheet> {
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatControllerProvider);
     final messages = chatState.messages;
+    if (messages.length != _lastMessageCount) {
+      _lastMessageCount = messages.length;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,

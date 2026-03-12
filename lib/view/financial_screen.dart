@@ -1,8 +1,10 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../controller/financial_controller.dart';
+import '../controller/auth_controller.dart';
 import '../model/app_theme.dart';
 import '../model/financial_model.dart';
 
@@ -22,6 +24,18 @@ class _FinancialScreenState extends ConsumerState<FinancialScreen> {
   DateTime _logDate = DateTime.now();
   String _targetHydrationKey = '';
   final Set<String> _acknowledgedRequirementCodes = <String>{};
+  bool _didInitLoad = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_didInitLoad) return;
+      _didInitLoad = true;
+      ref.read(financialControllerProvider.notifier).ensureLoadedForCurrentUser();
+    });
+  }
 
   @override
   void dispose() {
@@ -35,6 +49,13 @@ class _FinancialScreenState extends ConsumerState<FinancialScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AuthState>(authControllerProvider, (previous, next) {
+      if (previous?.userEmail != next.userEmail ||
+          previous?.status != next.status) {
+        ref.read(financialControllerProvider.notifier).ensureLoadedForCurrentUser();
+      }
+    });
+
     final state = ref.watch(financialControllerProvider);
     final ctrl = ref.read(financialControllerProvider.notifier);
     final summary = state.summary;
@@ -89,7 +110,7 @@ class _FinancialScreenState extends ConsumerState<FinancialScreen> {
         slivers: [
           SliverAppBar(
             floating: true,
-            expandedHeight: 128,
+            expandedHeight: 160,
             backgroundColor: Colors.white,
             elevation: 0,
             flexibleSpace: FlexibleSpaceBar(
@@ -118,6 +139,10 @@ class _FinancialScreenState extends ConsumerState<FinancialScreen> {
                       onPressed: () => _pickMonth(context, ctrl, state.selectedMonth),
                       icon: const Icon(Icons.calendar_month_rounded, size: 16),
                       label: Text(_monthLabel(state.selectedMonth)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ],
                 ),
@@ -128,18 +153,14 @@ class _FinancialScreenState extends ConsumerState<FinancialScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                _ReadinessCard(
-                  readiness: summary.readiness,
-                  acknowledgedCodes: _acknowledgedRequirementCodes,
-                  onToggleAcknowledged: _toggleAcknowledgedRequirement,
-                ),
-                const SizedBox(height: 16),
                 _TargetCard(
                   budgetCtrl: _budgetCtrl,
                   growthCtrl: _growthCtrl,
                   isSaving: state.isSavingTarget,
                   onSave: () => _saveTarget(ctrl),
                 ),
+                const SizedBox(height: 16),
+                _GrowthGraphCard(graph: state.graph),
                 const SizedBox(height: 16),
                 _DailyLogCard(
                   logDate: _logDate,
@@ -151,11 +172,15 @@ class _FinancialScreenState extends ConsumerState<FinancialScreen> {
                   onSave: () => _saveLog(ctrl),
                 ),
                 const SizedBox(height: 16),
-                _GrowthGraphCard(graph: state.graph),
-                const SizedBox(height: 16),
                 _RecentLogsCard(logs: state.logs),
                 const SizedBox(height: 16),
                 _GrantMatcherCard(grants: summary.matchedGrants),
+                const SizedBox(height: 16),
+                _ReadinessCard(
+                  readiness: summary.readiness,
+                  acknowledgedCodes: _acknowledgedRequirementCodes,
+                  onToggleAcknowledged: _toggleAcknowledgedRequirement,
+                ),
                 if (state.error.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text(
@@ -282,9 +307,15 @@ class _ReadinessCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final value = readiness.score.clamp(0, 100).toDouble();
-    final threshold = readiness.qualifyingThreshold.toDouble().clamp(0, 100);
-    final thresholdTurns = threshold / 100;
+    final acknowledgedBoost = readiness.missingRequirements
+        .where((r) => acknowledgedCodes.contains(r.code))
+        .fold<double>(0, (sum, r) => sum + r.missingPoints);
+    final adjustedScore =
+        (readiness.score.toDouble() + acknowledgedBoost).clamp(0, 100);
+    final pointsToThreshold = (readiness.qualifyingThreshold - adjustedScore)
+        .clamp(0, 100)
+        .round();
+    final value = adjustedScore;
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -301,8 +332,8 @@ class _ReadinessCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            readiness.pointsToThreshold > 0
-                ? 'Need ${readiness.pointsToThreshold} more points to reach ${readiness.qualifyingThreshold}.'
+            pointsToThreshold > 0
+                ? 'Need $pointsToThreshold more points to reach ${readiness.qualifyingThreshold}.'
                 : 'You are above the qualifying threshold.',
             style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
           ),
@@ -324,22 +355,11 @@ class _ReadinessCard extends StatelessWidget {
                       backgroundColor: AppTheme.border,
                     ),
                   ),
-                  Transform.rotate(
-                    angle: (2 * 3.141592653589793 * thresholdTurns) - (3.141592653589793 / 2),
-                    child: const Align(
-                      alignment: Alignment.topCenter,
-                      child: Icon(
-                        Icons.flag_rounded,
-                        color: AppTheme.blue,
-                        size: 18,
-                      ),
-                    ),
-                  ),
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        '${readiness.score}%',
+                        '${adjustedScore.round()}%',
                         style: const TextStyle(
                           fontSize: 30,
                           fontWeight: FontWeight.w800,
@@ -678,6 +698,27 @@ class _GrowthGraphCard extends StatelessWidget {
                       dotData: const FlDotData(show: false),
                     ),
                   ],
+                  lineTouchData: LineTouchData(
+                    handleBuiltInTouches: true,
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipItems: (touchedSpots) {
+                        return touchedSpots.map((spot) {
+                          final base = spot.bar.color;
+                          final color = (base != null && base == AppTheme.green)
+                              ? const Color(0xFF7ED6A5)
+                              : const Color(0xFF7FB6FF);
+                          return LineTooltipItem(
+                            '${spot.y.toStringAsFixed(1)}%',
+                            TextStyle(
+                              color: color,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          );
+                        }).toList();
+                      },
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -779,6 +820,112 @@ class _GrantMatcherCard extends StatelessWidget {
 
   final List<GrantMatch> grants;
 
+  Future<void> _openUrl(BuildContext context, String url) async {
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return;
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return;
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to open application link.')),
+      );
+    }
+  }
+
+  void _showGrantDetails(BuildContext context, GrantMatch grant) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => Container(
+        margin: const EdgeInsets.fromLTRB(16, 80, 16, 24),
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: AppTheme.radiusXl,
+          boxShadow: AppTheme.cardShadow,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      grant.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'RM ${grant.maxFundingRm.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.green,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                '${grant.agency} • ${grant.country}${grant.state.isNotEmpty ? ' • ${grant.state}' : ''}',
+                style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  _InfoPill(label: 'Deadline', value: grant.deadline),
+                ],
+              ),
+              const SizedBox(height: 14),
+              if (grant.requirements.isNotEmpty) ...[
+                const Text(
+                  'Requirements',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 6),
+                ...grant.requirements.map(
+                  (r) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text('• $r', style: const TextStyle(fontSize: 12)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+              if (grant.unmetRequirements.isNotEmpty) ...[
+                const Text(
+                  'Unmet Requirements',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.error),
+                ),
+                const SizedBox(height: 6),
+                ...grant.unmetRequirements.map(
+                  (r) => Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text('• $r', style: const TextStyle(fontSize: 12, color: AppTheme.error)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: grant.applicationUrl.trim().isEmpty
+                      ? null
+                      : () => _openUrl(context, grant.applicationUrl),
+                  child: const Text('Open Application'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -807,53 +954,167 @@ class _GrantMatcherCard extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
             )
           else
-            ...grants.take(6).map(
-                  (grant) => Card(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: const BorderSide(color: AppTheme.border),
+            SizedBox(
+              height: 170,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: grants.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 12),
+                itemBuilder: (context, index) {
+                  final grant = grants[index];
+                  return SizedBox(
+                    width: 250,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () => _showGrantDetails(context, grant),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppTheme.border),
+                          boxShadow: AppTheme.cardShadow,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.greenPale,
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                  child: const Text(
+                                    'GRANT',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppTheme.green,
+                                      letterSpacing: 0.4,
+                                    ),
+                                  ),
+                                ),
+                                if (grant.targetBusinessStage.isNotEmpty) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.bluePale,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      grant.targetBusinessStage,
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppTheme.blue,
+                                        letterSpacing: 0.3,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                                const Spacer(),
+                                Text(
+                                  'RM ${grant.maxFundingRm.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.green,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Text(
+                              grant.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              grant.agency,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                            ),
+                            const Spacer(),
+                            Row(
+                              children: [
+                                const Icon(Icons.event, size: 14, color: AppTheme.textMuted),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    grant.deadline.isEmpty ? 'No deadline' : grant.deadline,
+                                    style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.blue,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Text(
+                                    'View',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                    child: ExpansionTile(
-                      tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-                      childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-                      title: Text(
-                        grant.name,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-                      ),
-                      subtitle: Text(
-                        '${grant.agency} | Fit ${grant.fitScore.toStringAsFixed(0)}%',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      trailing: Text(
-                        'RM ${grant.maxFundingRm.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.green,
-                        ),
-                      ),
-                      children: [
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Deadline: ${grant.deadline}',
-                            style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Application: ${grant.applicationUrl}',
-                            style: const TextStyle(fontSize: 11, color: AppTheme.blue),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoPill extends StatelessWidget {
+  const _InfoPill({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppTheme.background,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, color: AppTheme.textMuted, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            value.isEmpty ? '—' : value,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+          ),
         ],
       ),
     );

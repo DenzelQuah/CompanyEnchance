@@ -206,6 +206,8 @@ class AuthController extends StateNotifier<AuthState> {
   // ── Sign Out ───────────────────────────────────────────────────────────────
   Future<void> signOut() async {
     await _supabase.auth.signOut();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('survey_session_id');
     state = const AuthState();
   }
 

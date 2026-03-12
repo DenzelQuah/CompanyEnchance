@@ -180,6 +180,8 @@ class _MilestoneDetailScreenState extends ConsumerState<MilestoneDetailScreen> {
           survey: widget.survey,
           isAlternative: isAlternative,
         ),
+        useRag: false,
+        allowUpdates: false,
       ),
     );
   }

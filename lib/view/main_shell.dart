@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../model/app_theme.dart';
-import 'dashboard_screen.dart';
+import 'forum_screen.dart';
 import 'financial_screen.dart';
 import 'profile_screen.dart';
 import 'roadmap_screen.dart';
@@ -19,14 +19,14 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   static const _tabs = [
     _TabItem(label: 'Journey', icon: Icons.route_rounded),
-    _TabItem(label: 'Analytics', icon: Icons.analytics_outlined),
+    _TabItem(label: 'Forum', icon: Icons.forum_outlined),
     _TabItem(label: 'Financial', icon: Icons.account_balance_wallet_outlined),
     _TabItem(label: 'Profile', icon: Icons.person_outline_rounded),
   ];
 
   static const _screens = [
     RoadmapScreen(),
-    DashboardScreen(),
+    ForumScreen(),
     FinancialScreen(),
     ProfileScreen(),
   ];

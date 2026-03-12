@@ -70,13 +70,28 @@ class FinancialController extends StateNotifier<FinancialState> {
 
   final FinancialApiService _api;
   final SupabaseClient _supabase;
+  String? _loadedUserId;
 
   String get selectedMonthKey => _monthKey(state.selectedMonth);
+
+  Future<String?> _resolveActiveUserId() async {
+    final authId = _supabase.auth.currentUser?.id;
+    if (authId != null && authId.isNotEmpty) return authId;
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('survey_session_id');
+  }
+
+  Future<void> ensureLoadedForCurrentUser() async {
+    final currentId = await _resolveActiveUserId();
+    if (currentId == _loadedUserId && !state.isLoading) return;
+    _loadedUserId = currentId;
+    await loadAll();
+  }
 
   Future<void> loadAll() async {
     state = state.copyWith(isLoading: true, error: '');
     try {
-      final userId = await _resolveUserId();
+      final userId = await _resolveActiveUserId();
       if (userId == null || userId.isEmpty) {
         state = state.copyWith(
           isLoading: false,
@@ -84,6 +99,7 @@ class FinancialController extends StateNotifier<FinancialState> {
         );
         return;
       }
+      _loadedUserId = userId;
 
       final month = selectedMonthKey;
       final summary = await _api.fetchSummary(userId: userId);
@@ -191,16 +207,10 @@ class FinancialController extends StateNotifier<FinancialState> {
     }
   }
 
-  Future<String?> _resolveUserId() async {
-    final authId = _supabase.auth.currentUser?.id;
-    if (authId != null && authId.isNotEmpty) return authId;
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('survey_session_id');
-  }
+  Future<String?> _resolveUserId() => _resolveActiveUserId();
 }
 
 final financialControllerProvider =
     StateNotifierProvider<FinancialController, FinancialState>(
       (_) => FinancialController(),
     );
-
