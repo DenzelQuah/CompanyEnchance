@@ -49,14 +49,20 @@ class ChatService:
         self.answer_chain = self.prompt | self.llm | StrOutputParser()
 
     async def chat(
-        self, user_id: str, message: str, session_id: str | None = None
+        self,
+        user_id: str,
+        message: str,
+        session_id: str | None = None,
+        *,
+        use_rag: bool = True,
+        allow_updates: bool = True,
     ) -> ChatResponse:
         user_id = self._parse_user_uuid(user_id)
         sid = self._get_or_create_session(user_id=user_id, session_id=session_id)
         self._save_message(session_id=sid, user_id=user_id, role="user", content=message)
         history_rows = self._fetch_last_messages(session_id=sid, limit=5)
 
-        if self._is_update_intent(message):
+        if allow_updates and self._is_update_intent(message):
             update_result = self._call_update_tool(user_id=user_id, message=message)
             answer = (
                 f"Roadmap update executed via tool `{settings.roadmap_update_function}`. "
@@ -70,8 +76,10 @@ class ChatService:
             )
             return ChatResponse(answer=answer, source_documents=[], session_id=sid)
 
-        self._validate_embedding_size(message)
-        docs = self._retrieve_documents(user_id=user_id, question=message)
+        docs: list[Document] = []
+        if use_rag:
+            self._validate_embedding_size(message)
+            docs = self._retrieve_documents(user_id=user_id, question=message)
         context = self._format_docs(docs)
         history = self._format_history(history_rows)
 

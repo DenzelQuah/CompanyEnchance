@@ -7,6 +7,8 @@ class ChatRequest(BaseModel):
     user_id: str = Field(..., description="Supabase auth user id")
     message: str = Field(..., min_length=1)
     session_id: str | None = Field(default=None)
+    use_rag: bool = Field(default=True, description="Use vector retrieval context")
+    allow_updates: bool = Field(default=True, description="Allow roadmap update tool")
 
     @field_validator("user_id", "message", mode="before")
     @classmethod
@@ -98,6 +100,7 @@ class GrantMatch(BaseModel):
     agency: str
     country: str
     state: str
+    target_business_stage: str = ""
     max_funding_rm: float
     deadline: str
     fit_score: float

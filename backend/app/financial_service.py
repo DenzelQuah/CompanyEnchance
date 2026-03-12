@@ -145,6 +145,8 @@ class FinancialService:
             rows = list((getattr(result, "data", None)) or [])
         except Exception:
             rows = []
+        if rows:
+            rows.sort(key=lambda r: str(r.get("log_date", "")))
         items = [
             DailyFinancialLog(
                 id=str(row.get("id", "")),
@@ -332,7 +334,9 @@ class FinancialService:
         sector = str(survey.get("sector") or "").lower()
         today = date.today()
         matches: list[GrantMatch] = []
+        seen_ids: set[str] = set()
         for row in rows:
+            row_id = str(row.get("id") or "")
             if not bool(row.get("is_active", True)):
                 continue
             deadline = self._parse_deadline(row.get("deadline"))
@@ -340,11 +344,11 @@ class FinancialService:
                 continue
 
             min_readiness = int(row.get("min_readiness_score") or 0)
-            if readiness.score < min_readiness:
-                continue
 
             row_country = str(row.get("country") or "").lower()
             row_state = str(row.get("state") or "").lower()
+            if "open to malaysia company" in row_state:
+                row_state = "any"
             if row_country and "malaysia" not in row_country:
                 continue
             if row_state and row_state not in {"any", "all"} and row_state not in location:
@@ -356,6 +360,7 @@ class FinancialService:
                 continue
 
             requirements = [str(r) for r in (row.get("requirements") or [])]
+            requirements = [r for r in requirements if not self._is_stage_requirement(r)]
             unmet = self._grant_unmet_requirements(requirements=requirements, survey=survey)
             fit_score = self._grant_fit_score(
                 readiness_score=readiness.score,
@@ -364,13 +369,17 @@ class FinancialService:
                 grant_state=row_state,
                 sector_match=sector_match,
             )
+            if row_id in seen_ids:
+                continue
+            seen_ids.add(row_id)
             matches.append(
                 GrantMatch(
-                    id=str(row.get("id") or ""),
+                    id=row_id,
                     name=str(row.get("name") or "Grant"),
                     agency=str(row.get("agency") or "Agency"),
                     country=str(row.get("country") or "Malaysia"),
                     state=str(row.get("state") or "Any"),
+                    target_business_stage=str(row.get("target_business_stage") or "").strip(),
                     max_funding_rm=round(self._to_float(row.get("max_funding_rm"), 0.0), 2),
                     deadline=str(row.get("deadline") or ""),
                     fit_score=round(fit_score, 2),
@@ -381,7 +390,7 @@ class FinancialService:
             )
 
         matches.sort(key=lambda item: (-item.fit_score, item.deadline))
-        return matches
+        return matches[:5]
 
     def _fetch_grants(self) -> list[dict[str, Any]]:
         try:
@@ -398,6 +407,8 @@ class FinancialService:
         audited = bool(survey.get("has_audited_statements"))
         unmet: list[str] = []
         for req in requirements:
+            if self._is_stage_requirement(req):
+                continue
             lowered = req.lower()
             if "registration" in lowered and not registration_no:
                 unmet.append(req)
@@ -406,6 +417,16 @@ class FinancialService:
             elif "audited" in lowered and not audited:
                 unmet.append(req)
         return unmet
+
+    def _is_stage_requirement(self, requirement: str) -> bool:
+        lowered = requirement.lower()
+        return (
+            "target business stage" in lowered
+            or "business stage" in lowered
+            or lowered.startswith("stage:")
+            or "stage requirement" in lowered
+            or "target stage" in lowered
+        )
 
     def _grant_fit_score(
         self,

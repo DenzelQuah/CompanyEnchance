@@ -52,6 +52,8 @@ async def chat(req: ChatRequest) -> ChatResponse:
             user_id=req.user_id,
             message=req.message,
             session_id=req.session_id,
+            use_rag=req.use_rag,
+            allow_updates=req.allow_updates,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
