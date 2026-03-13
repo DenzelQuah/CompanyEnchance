@@ -1,0 +1,131 @@
+-- 006_grants_asean_2026_seed.sql
+-- Curated 2026 funding records for Malaysia/Sarawak MSMEs.
+
+insert into public.grants_asean_2026 (
+  name,
+  agency,
+  country,
+  state,
+  sector_tags,
+  target_business_stage,
+  min_readiness_score,
+  max_funding_rm,
+  deadline,
+  requirements,
+  application_url,
+  is_active
+)
+values
+  (
+    'MDEC SME Digitalisation Grant 2026',
+    'MDEC',
+    'Malaysia',
+    'Any',
+    array['technology','retail & e-commerce','services'],
+    'msme',
+    55,
+    20000,
+    '2026-11-30',
+    array['Business registration', 'At least 3 months digital statements'],
+    'https://mdec.my',
+    true
+  ),
+  (
+    'TEKUN Nasional Sarawak Micro Financing',
+    'TEKUN',
+    'Malaysia',
+    'Sarawak',
+    array['all'],
+    'micro',
+    45,
+    100000,
+    '2026-12-31',
+    array['Business registration', 'Local bank account'],
+    'https://www.tekun.gov.my',
+    true
+  ),
+  (
+    'SME Corp Business Accelerator Grant',
+    'SME Corp',
+    'Malaysia',
+    'Any',
+    array['manufacturing','food & beverage','services','retail & e-commerce'],
+    'msme',
+    65,
+    150000,
+    '2026-10-15',
+    array['Business registration', 'Audited statements', 'Growth plan'],
+    'https://smecorp.gov.my',
+    true
+  ),
+  (
+    'MATRADE Market Development Grant',
+    'MATRADE',
+    'Malaysia',
+    'Any',
+    array['manufacturing','food & beverage','handicraft & creative'],
+    'exporting',
+    70,
+    300000,
+    '2026-09-30',
+    array['Business registration', 'Export readiness plan', 'At least 6 months digital statements'],
+    'https://www.matrade.gov.my',
+    true
+  ),
+  (
+    'Sarawak Digital Economy SME Scheme',
+    'SDEC',
+    'Malaysia',
+    'Sarawak',
+    array['technology','services','retail & e-commerce'],
+    'msme',
+    50,
+    50000,
+    '2026-12-20',
+    array['Business registration', 'Sarawak operations proof'],
+    'https://www.sdec.com.my',
+    true
+  ),
+  (
+    'Agrobank Agropreneur Grant 2026',
+    'Agrobank',
+    'Malaysia',
+    'Any',
+    array['agriculture','food & beverage'],
+    'micro',
+    52,
+    80000,
+    '2026-08-31',
+    array['Business registration', 'Production records'],
+    'https://www.agrobank.com.my',
+    true
+  ),
+  (
+    'Bank Rakyat Micro Biz Financing',
+    'Bank Rakyat',
+    'Malaysia',
+    'Any',
+    array['all'],
+    'micro',
+    60,
+    120000,
+    '2026-12-31',
+    array['Business registration', 'At least 3 months digital statements', 'Basic financial statements'],
+    'https://www.bankrakyat.com.my',
+    true
+  ),
+  (
+    'Cradle CIP Spark (Early Stage Tech)',
+    'Cradle',
+    'Malaysia',
+    'Any',
+    array['technology'],
+    'startup',
+    68,
+    150000,
+    '2026-07-31',
+    array['Business registration', 'Pitch deck', 'Product roadmap'],
+    'https://www.cradle.com.my',
+    true
+  )
+on conflict do nothing;
