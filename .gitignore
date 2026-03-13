@@ -76,6 +76,13 @@ fastlane/readme.md
 .packages
 .pub/
 build/
+pytest-cache-files-*
+backend/pytest-cache-files-*
+.dart_tool/dartpad/web_plugin_registrant.dart
+.dart_tool/package_config.json
+.dart_tool/package_graph.json
+**/flutter/generated_plugin_registrant.*
+**/flutter/generated_plugins.cmake
 # If you're building an application, you may want to check-in your pubspec.lock
 pubspec.lock
 
@@ -166,9 +173,33 @@ fabric.properties
 .buildlog/
 .history
 .svn/
+.venv/
 
 # API Keys
 .env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.Python
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+.tox/
+.nox/
+.venv/
+venv/
+ENV/
+env/
 
 
 ### https://raw.github.com/github/gitignore/80a8803b004013d17291196825a327b9e871f009/Global/macOS.gitignore
@@ -256,6 +287,7 @@ DerivedData/
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
+
 
 
 ## Custom

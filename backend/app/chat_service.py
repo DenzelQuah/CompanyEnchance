@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
+from uuid import UUID
 
 from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
@@ -48,13 +49,20 @@ class ChatService:
         self.answer_chain = self.prompt | self.llm | StrOutputParser()
 
     async def chat(
-        self, user_id: str, message: str, session_id: str | None = None
+        self,
+        user_id: str,
+        message: str,
+        session_id: str | None = None,
+        *,
+        use_rag: bool = True,
+        allow_updates: bool = True,
     ) -> ChatResponse:
+        user_id = self._parse_user_uuid(user_id)
         sid = self._get_or_create_session(user_id=user_id, session_id=session_id)
         self._save_message(session_id=sid, user_id=user_id, role="user", content=message)
         history_rows = self._fetch_last_messages(session_id=sid, limit=5)
 
-        if self._is_update_intent(message):
+        if allow_updates and self._is_update_intent(message):
             update_result = self._call_update_tool(user_id=user_id, message=message)
             answer = (
                 f"Roadmap update executed via tool `{settings.roadmap_update_function}`. "
@@ -68,8 +76,10 @@ class ChatService:
             )
             return ChatResponse(answer=answer, source_documents=[], session_id=sid)
 
-        self._validate_embedding_size(message)
-        docs = self._retrieve_documents(question=message)
+        docs: list[Document] = []
+        if use_rag:
+            self._validate_embedding_size(message)
+            docs = self._retrieve_documents(user_id=user_id, question=message)
         context = self._format_docs(docs)
         history = self._format_history(history_rows)
 
@@ -85,23 +95,35 @@ class ChatService:
         ]
         return ChatResponse(answer=answer, source_documents=source_documents, session_id=sid)
 
-    def _retrieve_documents(self, question: str) -> list[Document]:
-        # Call the RPC directly so argument names/signature match the SQL function.
+    def _retrieve_documents(self, user_id: str, question: str) -> list[Document]:
+        route = self._route_retrieval_target(question)
         query_embedding = self.embeddings.embed_query(question)
-        rpc_result = self.supabase.rpc(
-            settings.rag_match_function,
-            {
-                "query_embedding": query_embedding,
-                "match_threshold": settings.rag_match_threshold,
-                "match_count": settings.rag_top_k,
-            },
-        ).execute()
 
-        rows = list(rpc_result.data or [])
+        rows: list[dict[str, Any]] = []
+        if route in ("roadmap", "both"):
+            rows.extend(
+                self._rpc_match_roadmap(
+                    user_id=user_id,
+                    query_embedding=query_embedding,
+                    match_count=settings.rag_top_k,
+                )
+            )
+        if route in ("business", "both"):
+            rows.extend(
+                self._rpc_match_business(
+                    query_embedding=query_embedding,
+                    match_count=settings.rag_top_k,
+                )
+            )
+
+        rows.sort(key=lambda r: float(r.get("similarity") or 0.0), reverse=True)
+        rows = rows[: settings.rag_top_k]
         docs: list[Document] = []
         for row in rows:
             metadata = dict(row.get("metadata") or {})
             metadata["similarity"] = row.get("similarity")
+            metadata["retrieval_route"] = route
+            metadata["retrieval_table"] = row.get("retrieval_table")
             docs.append(
                 Document(
                     page_content=str(row.get("content", "")),
@@ -110,9 +132,99 @@ class ChatService:
             )
         return docs
 
+    def _rpc_match_roadmap(
+        self, user_id: str, query_embedding: list[float], match_count: int
+    ) -> list[dict[str, Any]]:
+        rpc_result = self.supabase.rpc(
+            settings.rag_match_function,
+            {
+                "filter_user_id": user_id,
+                "query_embedding": query_embedding,
+                "match_threshold": settings.rag_match_threshold,
+                "match_count": match_count,
+            },
+        ).execute()
+        rows: list[dict[str, Any]] = list(rpc_result.data or [])
+        for row in rows:
+            row["retrieval_table"] = settings.rag_table_name
+        return rows
+
+    def _rpc_match_business(
+        self, query_embedding: list[float], match_count: int
+    ) -> list[dict[str, Any]]:
+        rpc_result = self.supabase.rpc(
+            settings.business_rag_match_function,
+            {
+                "query_embedding": query_embedding,
+                "match_threshold": settings.rag_match_threshold,
+                "match_count": match_count,
+            },
+        ).execute()
+        rows: list[dict[str, Any]] = list(rpc_result.data or [])
+        for row in rows:
+            row["retrieval_table"] = settings.business_rag_table_name
+        return rows
+
+    def _route_retrieval_target(self, question: str) -> str:
+        lower = question.lower()
+        roadmap_keywords = (
+            "milestone",
+            "roadmap",
+            "week",
+            "step",
+            "next action",
+            "task",
+            "plan",
+            "progress",
+        )
+        business_keywords = (
+            "market",
+            "industry",
+            "grant",
+            "funding",
+            "regulation",
+            "policy",
+            "customer",
+            "pricing",
+            "export",
+            "competition",
+            "asean",
+        )
+
+        roadmap_hit = any(token in lower for token in roadmap_keywords)
+        business_hit = any(token in lower for token in business_keywords)
+        if roadmap_hit and business_hit:
+            return "both"
+        if roadmap_hit:
+            return "roadmap"
+        if business_hit:
+            return "business"
+
+        router_prompt = (
+            "Classify retrieval target for a user question.\n"
+            "Allowed labels: roadmap, business, both.\n"
+            "Return exactly one label only.\n\n"
+            f"Question: {question}"
+        )
+        try:
+            decision = self.llm.invoke(router_prompt)
+            label = str(getattr(decision, "content", decision)).strip().lower()
+        except Exception:
+            return "both"
+
+        if "roadmap" in label and "business" in label:
+            return "both"
+        if label == "roadmap":
+            return "roadmap"
+        if label == "business":
+            return "business"
+        if label == "both":
+            return "both"
+        return "both"
+
     def _format_docs(self, docs: list[Document]) -> str:
         if not docs:
-            return "No relevant roadmap documents were retrieved."
+            return "No relevant documents were retrieved."
         return "\n\n".join(
             [f"[Source {index + 1}] {doc.page_content}" for index, doc in enumerate(docs)]
         )
@@ -139,6 +251,12 @@ class ChatService:
                 "Embedding dimension mismatch: "
                 f"expected {settings.rag_embedding_dim}, got {len(vector)}"
             )
+
+    def _parse_user_uuid(self, user_id: str) -> str:
+        try:
+            return str(UUID(user_id))
+        except ValueError as exc:
+            raise ValueError("user_id must be a valid UUID.") from exc
 
     def _get_or_create_session(self, user_id: str, session_id: str | None) -> str:
         if session_id:
