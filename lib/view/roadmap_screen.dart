@@ -36,6 +36,32 @@ class RoadmapScreen extends ConsumerWidget {
       backgroundColor: AppTheme.background,
       body: Stack(
         children: [
+          if (state.isLoading)
+            const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(color: AppTheme.blue),
+                  SizedBox(height: 16),
+                  Text(
+                    'Generating your personalized roadmap...',
+                    style: TextStyle(
+                      color: AppTheme.textMuted,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (state.milestones.isEmpty)
+            const Center(
+              child: Text(
+                'No roadmap available. Please complete your profile.',
+                style: TextStyle(color: AppTheme.textMuted),
+              ),
+            )
+          else
           CustomScrollView(
             slivers: [
               _buildHeader(state, businessName),
