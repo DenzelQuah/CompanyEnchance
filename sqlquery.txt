@@ -1,0 +1,827 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.business_financial_targets (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id text NOT NULL,
+  month text NOT NULL,
+  monthly_budget_rm numeric NOT NULL DEFAULT 0 CHECK (monthly_budget_rm >= 0::numeric),
+  target_growth_pct numeric NOT NULL DEFAULT 0,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT business_financial_targets_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.business_knowledge (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  content text NOT NULL,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  embedding USER-DEFINED NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT business_knowledge_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.chat_messages (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  session_id uuid NOT NULL,
+  user_id uuid NOT NULL,
+  role text NOT NULL CHECK (role = ANY (ARRAY['user'::text, 'assistant'::text])),
+  content text NOT NULL,
+  tokens_used integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT chat_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT chat_messages_session_id_fkey FOREIGN KEY (session_id) REFERENCES public.chat_sessions(id),
+  CONSTRAINT chat_messages_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.chat_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  title text DEFAULT 'New Conversation'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT chat_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT chat_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.daily_financial_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id text NOT NULL,
+  log_date date NOT NULL,
+  revenue_rm numeric NOT NULL DEFAULT 0 CHECK (revenue_rm >= 0::numeric),
+  expense_rm numeric NOT NULL DEFAULT 0 CHECK (expense_rm >= 0::numeric),
+  note text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT daily_financial_logs_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.forum_comments (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  post_id uuid NOT NULL,
+  user_id text NOT NULL,
+  author_name text NOT NULL,
+  content text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT forum_comments_pkey PRIMARY KEY (id),
+  CONSTRAINT forum_comments_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forum_posts(id)
+);
+CREATE TABLE public.forum_likes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  post_id uuid NOT NULL,
+  user_id text NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT forum_likes_pkey PRIMARY KEY (id),
+  CONSTRAINT forum_likes_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forum_posts(id)
+);
+CREATE TABLE public.forum_posts (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id text NOT NULL,
+  author_name text NOT NULL,
+  content text NOT NULL,
+  image_url text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT forum_posts_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.grants_asean_2026 (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  agency text NOT NULL,
+  country text NOT NULL DEFAULT 'Malaysia'::text,
+  state text NOT NULL DEFAULT 'Open to Malaysia Company'::text,
+  sector_tags ARRAY NOT NULL DEFAULT '{}'::text[],
+  target_business_stage text NOT NULL DEFAULT 'msme'::text,
+  min_readiness_score integer NOT NULL DEFAULT 0,
+  max_funding_rm numeric NOT NULL DEFAULT 0,
+  deadline date,
+  requirements ARRAY NOT NULL DEFAULT '{}'::text[],
+  application_url text NOT NULL DEFAULT ''::text,
+  is_active boolean NOT NULL DEFAULT true,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT grants_asean_2026_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.roadmap_knowledge (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  content text NOT NULL,
+  metadata jsonb,
+  embedding USER-DEFINED,
+  user_id uuid,
+  CONSTRAINT roadmap_knowledge_pkey PRIMARY KEY (id),
+  CONSTRAINT roadmap_knowledge_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.survey_responses (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  business_name text,
+  sector text,
+  location text,
+  sales_tracking text,
+  team_size integer,
+  primary_goal text,
+  has_audited_statements boolean,
+  digital_presence ARRAY,
+  supply_chain text,
+  weekly_commitment text,
+  budget_plan text,
+  readiness_score integer,
+  current_step integer DEFAULT 0,
+  business_registration_no text,
+  registration_type text CHECK (registration_type IS NULL OR (registration_type = ANY (ARRAY['ubin'::text, 'ssm'::text, 'other'::text]))),
+  digital_statement_months integer NOT NULL DEFAULT 0,
+  CONSTRAINT survey_responses_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.user_milestones (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id text NOT NULL,
+  title text NOT NULL,
+  description text NOT NULL,
+  week_label text NOT NULL,
+  xp_reward bigint NOT NULL DEFAULT 100,
+  status text NOT NULL DEFAULT 'locked'::text,
+  emoji text NOT NULL DEFAULT '🎯'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  tool text,
+  tool_url text,
+  estimated_time text,
+  source text,
+  source_insight text,
+  steps jsonb,
+  current_step bigint DEFAULT 0,
+  relevance_reason text,
+  resources jsonb DEFAULT '[]'::jsonb,
+  micro_tasks jsonb DEFAULT '[]'::jsonb,
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT user_milestones_pkey PRIMARY KEY (id)
+);
+
+-- ============================================================
+-- Vector DB setup + RAG RPC (add to your runnable SQL scripts)
+-- ============================================================
+
+-- 1) Extensions required for embeddings
+create extension if not exists vector;
+create extension if not exists pgcrypto;
+
+-- 2) Roadmap knowledge table with vector type + metadata indexing
+-- NOTE: uses halfvec(3072) for Gemini embedding dimension
+create table if not exists public.roadmap_knowledge (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete cascade,
+  content text not null,
+  metadata jsonb default '{}'::jsonb,
+  embedding halfvec(3072) not null,
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_roadmap_knowledge_embedding_hnsw
+  on public.roadmap_knowledge
+  using hnsw (embedding halfvec_cosine_ops);
+
+create index if not exists idx_roadmap_knowledge_user_id
+  on public.roadmap_knowledge (user_id);
+
+create index if not exists idx_roadmap_knowledge_user_doc_chunk
+  on public.roadmap_knowledge (
+    user_id,
+    ((metadata->>'source_doc_id')),
+    ((metadata->>'chunk_index'))
+  );
+
+create index if not exists idx_roadmap_knowledge_source_doc_hash
+  on public.roadmap_knowledge (((metadata->>'source_doc_hash')))
+  where metadata ? 'source_doc_hash';
+
+-- 3) RPC function for vector retrieval
+create or replace function public.match_roadmap_docs(
+  filter_user_id uuid,
+  query_embedding halfvec(3072),
+  match_threshold float,
+  match_count int
+)
+returns table (
+  id uuid,
+  content text,
+  metadata jsonb,
+  similarity float
+)
+language plpgsql
+as $$
+begin
+  return query
+  select
+    rk.id,
+    rk.content,
+    rk.metadata,
+    1 - (rk.embedding <=> query_embedding) as similarity
+  from public.roadmap_knowledge as rk
+  where rk.user_id = filter_user_id
+    and 1 - (rk.embedding <=> query_embedding) > match_threshold
+  order by similarity desc
+  limit match_count;
+end;
+$$;
+
+-- Optional grants for anon/authenticated if not using service role
+grant execute on function public.match_roadmap_docs(uuid, halfvec, float, int)
+to anon, authenticated;
+
+-- ============================================================
+-- Business knowledge vector store + RPC
+-- ============================================================
+
+create extension if not exists vector;
+create extension if not exists pgcrypto;
+
+create table if not exists public.business_knowledge (
+  id uuid primary key default gen_random_uuid(),
+  content text not null,
+  metadata jsonb default '{}'::jsonb,
+  embedding halfvec(3072) not null,
+  created_at timestamptz default now()
+);
+
+create index if not exists idx_business_knowledge_embedding_hnsw
+  on public.business_knowledge
+  using hnsw (embedding halfvec_cosine_ops);
+
+create index if not exists idx_business_knowledge_source_doc_id
+  on public.business_knowledge (((metadata->>'source_doc_id')));
+
+create or replace function public.match_business_docs(
+  query_embedding halfvec(3072),
+  match_threshold float,
+  match_count int
+)
+returns table (
+  id uuid,
+  content text,
+  metadata jsonb,
+  similarity float
+)
+language plpgsql
+as $$
+begin
+  return query
+  select
+    bk.id,
+    bk.content,
+    bk.metadata,
+    1 - (bk.embedding <=> query_embedding) as similarity
+  from public.business_knowledge as bk
+  where 1 - (bk.embedding <=> query_embedding) > match_threshold
+  order by similarity desc
+  limit match_count;
+end;
+$$;
+
+grant execute on function public.match_business_docs(halfvec, float, int)
+to anon, authenticated;
+
+-- ============================================================
+-- Financial targets + logs (Phase 2)
+-- ============================================================
+
+create extension if not exists "pgcrypto";
+
+create table if not exists public.business_financial_targets (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  month text not null,
+  monthly_budget_rm numeric not null default 0 check (monthly_budget_rm >= 0),
+  target_growth_pct numeric not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, month)
+);
+
+create index if not exists idx_business_financial_targets_user_month
+  on public.business_financial_targets (user_id, month);
+
+create table if not exists public.daily_financial_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id text not null,
+  log_date date not null,
+  revenue_rm numeric not null default 0 check (revenue_rm >= 0),
+  expense_rm numeric not null default 0 check (expense_rm >= 0),
+  note text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, log_date)
+);
+
+create index if not exists idx_daily_financial_logs_user_date
+  on public.daily_financial_logs (user_id, log_date);
+
+-- ============================================================
+-- Grants table + seed data
+-- ============================================================
+
+create extension if not exists "pgcrypto";
+
+create table if not exists public.grants_asean_2026 (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  agency text not null,
+  country text not null default 'Malaysia',
+  state text not null default 'Open to Malaysia Company',
+  sector_tags text[] not null default '{}',
+  target_business_stage text not null default 'msme',
+  min_readiness_score integer not null default 0,
+  max_funding_rm numeric not null default 0,
+  deadline date,
+  requirements text[] not null default '{}',
+  application_url text not null default '',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_grants_asean_2026_active
+  on public.grants_asean_2026 (is_active);
+
+create index if not exists idx_grants_asean_2026_country_state
+  on public.grants_asean_2026 (country, state);
+
+create index if not exists idx_grants_asean_2026_min_readiness
+  on public.grants_asean_2026 (min_readiness_score);
+
+insert into public.grants_asean_2026 (
+  name,
+  agency,
+  country,
+  state,
+  sector_tags,
+  target_business_stage,
+  min_readiness_score,
+  max_funding_rm,
+  deadline,
+  requirements,
+  application_url,
+  is_active
+)
+values
+  (
+    'MDEC SME Digitalisation Grant 2026',
+    'MDEC',
+    'Malaysia',
+    'Open to Malaysia Company',
+    array['technology','retail & e-commerce','services'],
+    'msme',
+    55,
+    20000,
+    '2026-11-30',
+    array['Business registration', 'At least 3 months digital statements'],
+    'https://mdec.my',
+    true
+  ),
+  (
+    'TEKUN Nasional Sarawak Micro Financing',
+    'TEKUN',
+    'Malaysia',
+    'Sarawak',
+    array['all'],
+    'micro',
+    45,
+    100000,
+    '2026-12-31',
+    array['Business registration', 'Local bank account'],
+    'https://www.tekun.gov.my',
+    true
+  ),
+  (
+    'SME Corp Business Accelerator Grant',
+    'SME Corp',
+    'Malaysia',
+    'Open to Malaysia Company',
+    array['manufacturing','food & beverage','services','retail & e-commerce'],
+    'msme',
+    65,
+    150000,
+    '2026-10-15',
+    array['Business registration', 'Audited statements', 'Growth plan'],
+    'https://smecorp.gov.my',
+    true
+  ),
+  (
+    'MATRADE Market Development Grant',
+    'MATRADE',
+    'Malaysia',
+    'Open to Malaysia Company',
+    array['manufacturing','food & beverage','handicraft & creative'],
+    'exporting',
+    70,
+    300000,
+    '2026-09-30',
+    array['Business registration', 'Export readiness plan', 'At least 6 months digital statements'],
+    'https://www.matrade.gov.my',
+    true
+  ),
+  (
+    'Sarawak Digital Economy SME Scheme',
+    'SDEC',
+    'Malaysia',
+    'Sarawak',
+    array['technology','services','retail & e-commerce'],
+    'msme',
+    50,
+    50000,
+    '2026-12-20',
+    array['Business registration', 'Sarawak operations proof'],
+    'https://www.sdec.com.my',
+    true
+  ),
+  (
+    'Agrobank Agropreneur Grant 2026',
+    'Agrobank',
+    'Malaysia',
+    'Open to Malaysia Company',
+    array['agriculture','food & beverage'],
+    'micro',
+    52,
+    80000,
+    '2026-08-31',
+    array['Business registration', 'Production records'],
+    'https://www.agrobank.com.my',
+    true
+  ),
+  (
+    'Bank Rakyat Micro Biz Financing',
+    'Bank Rakyat',
+    'Malaysia',
+    'Open to Malaysia Company',
+    array['all'],
+    'micro',
+    60,
+    120000,
+    '2026-12-31',
+    array['Business registration', 'At least 3 months digital statements', 'Basic financial statements'],
+    'https://www.bankrakyat.com.my',
+    true
+  ),
+  (
+    'Cradle CIP Spark (Early Stage Tech)',
+    'Cradle',
+    'Malaysia',
+    'Open to Malaysia Company',
+    array['technology'],
+    'startup',
+    68,
+    150000,
+    '2026-07-31',
+    array['Business registration', 'Pitch deck', 'Product roadmap'],
+    'https://www.cradle.com.my',
+    true
+  )
+on conflict do nothing;
+
+-- ============================================================
+-- Updated_at triggers + RAG sync support
+-- ============================================================
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_user_milestones_set_updated_at on public.user_milestones;
+create trigger trg_user_milestones_set_updated_at
+before update on public.user_milestones
+for each row
+execute function public.set_updated_at();
+
+drop trigger if exists trg_business_financial_targets_set_updated_at
+  on public.business_financial_targets;
+create trigger trg_business_financial_targets_set_updated_at
+before update on public.business_financial_targets
+for each row
+execute function public.set_updated_at();
+
+drop trigger if exists trg_daily_financial_logs_set_updated_at
+  on public.daily_financial_logs;
+create trigger trg_daily_financial_logs_set_updated_at
+before update on public.daily_financial_logs
+for each row
+execute function public.set_updated_at();
+
+create index if not exists idx_user_milestones_user_updated_at
+  on public.user_milestones (user_id, updated_at desc);
+
+create index if not exists idx_roadmap_knowledge_source_doc_id
+  on public.roadmap_knowledge (((metadata->>'source_doc_id')));
+
+create index if not exists idx_roadmap_knowledge_milestone_id
+  on public.roadmap_knowledge (((metadata->>'milestone_id')))
+  where metadata ? 'milestone_id';
+
+-- Optional: align user_milestones.user_id to uuid.
+-- Run ONLY if all user_id values are valid UUID strings.
+-- select user_id
+-- from public.user_milestones
+-- where user_id is null
+--    or user_id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$';
+-- alter table public.user_milestones
+--   alter column user_id type uuid
+--   using user_id::uuid;
+-- create index if not exists idx_user_milestones_user_id_uuid
+--   on public.user_milestones (user_id);
+
+-- ============================================================
+-- RLS policies (enable + allow user-scoped access)
+-- ============================================================
+
+alter table public.chat_sessions enable row level security;
+alter table public.chat_messages enable row level security;
+alter table public.roadmap_knowledge enable row level security;
+alter table public.survey_responses enable row level security;
+alter table public.user_milestones enable row level security;
+alter table public.business_financial_targets enable row level security;
+alter table public.daily_financial_logs enable row level security;
+alter table public.forum_posts enable row level security;
+alter table public.forum_comments enable row level security;
+alter table public.forum_likes enable row level security;
+alter table public.grants_asean_2026 enable row level security;
+alter table public.business_knowledge enable row level security;
+
+-- chat_sessions
+drop policy if exists chat_sessions_select_own on public.chat_sessions;
+create policy chat_sessions_select_own
+on public.chat_sessions for select
+using (user_id = auth.uid());
+
+drop policy if exists chat_sessions_modify_own on public.chat_sessions;
+create policy chat_sessions_modify_own
+on public.chat_sessions for insert, update, delete
+with check (user_id = auth.uid());
+
+-- chat_messages
+drop policy if exists chat_messages_select_own on public.chat_messages;
+create policy chat_messages_select_own
+on public.chat_messages for select
+using (user_id = auth.uid());
+
+drop policy if exists chat_messages_modify_own on public.chat_messages;
+create policy chat_messages_modify_own
+on public.chat_messages for insert, update, delete
+with check (user_id = auth.uid());
+
+-- survey_responses (id doubles as user id)
+drop policy if exists survey_responses_select_own on public.survey_responses;
+create policy survey_responses_select_own
+on public.survey_responses for select
+using (id = auth.uid());
+
+drop policy if exists survey_responses_modify_own on public.survey_responses;
+create policy survey_responses_modify_own
+on public.survey_responses for insert, update, delete
+with check (id = auth.uid());
+
+-- user_milestones (user_id stored as text)
+drop policy if exists user_milestones_select_own on public.user_milestones;
+create policy user_milestones_select_own
+on public.user_milestones for select
+using (user_id = auth.uid()::text);
+
+drop policy if exists user_milestones_modify_own on public.user_milestones;
+create policy user_milestones_modify_own
+on public.user_milestones for insert, update, delete
+with check (user_id = auth.uid()::text);
+
+-- business_financial_targets (user_id stored as text)
+drop policy if exists business_financial_targets_select_own
+  on public.business_financial_targets;
+create policy business_financial_targets_select_own
+on public.business_financial_targets for select
+using (user_id = auth.uid()::text);
+
+drop policy if exists business_financial_targets_modify_own
+  on public.business_financial_targets;
+create policy business_financial_targets_modify_own
+on public.business_financial_targets for insert, update, delete
+with check (user_id = auth.uid()::text);
+
+-- daily_financial_logs (user_id stored as text)
+drop policy if exists daily_financial_logs_select_own
+  on public.daily_financial_logs;
+create policy daily_financial_logs_select_own
+on public.daily_financial_logs for select
+using (user_id = auth.uid()::text);
+
+drop policy if exists daily_financial_logs_modify_own
+  on public.daily_financial_logs;
+create policy daily_financial_logs_modify_own
+on public.daily_financial_logs for insert, update, delete
+with check (user_id = auth.uid()::text);
+
+-- forum_posts (public read, owner write)
+drop policy if exists forum_posts_read_all on public.forum_posts;
+create policy forum_posts_read_all
+on public.forum_posts for select
+using (true);
+
+drop policy if exists forum_posts_modify_own on public.forum_posts;
+create policy forum_posts_modify_own
+on public.forum_posts for insert, update, delete
+with check (user_id = auth.uid()::text);
+
+-- forum_comments (public read, owner write)
+drop policy if exists forum_comments_read_all on public.forum_comments;
+create policy forum_comments_read_all
+on public.forum_comments for select
+using (true);
+
+drop policy if exists forum_comments_modify_own on public.forum_comments;
+create policy forum_comments_modify_own
+on public.forum_comments for insert, update, delete
+with check (user_id = auth.uid()::text);
+
+-- forum_likes (public read, owner write)
+drop policy if exists forum_likes_read_all on public.forum_likes;
+create policy forum_likes_read_all
+on public.forum_likes for select
+using (true);
+
+drop policy if exists forum_likes_modify_own on public.forum_likes;
+create policy forum_likes_modify_own
+on public.forum_likes for insert, update, delete
+with check (user_id = auth.uid()::text);
+
+-- grants_asean_2026 (public read only)
+drop policy if exists grants_asean_2026_read_all on public.grants_asean_2026;
+create policy grants_asean_2026_read_all
+on public.grants_asean_2026 for select
+using (true);
+
+-- business_knowledge (public read, service_role write)
+drop policy if exists business_knowledge_read_all on public.business_knowledge;
+create policy business_knowledge_read_all
+on public.business_knowledge for select
+using (true);
+
+drop policy if exists business_knowledge_write_service_role on public.business_knowledge;
+create policy business_knowledge_write_service_role
+on public.business_knowledge for insert, update, delete
+with check (auth.role() = 'service_role');
+
+-- roadmap_knowledge (user read, service_role write)
+drop policy if exists roadmap_knowledge_select_own on public.roadmap_knowledge;
+create policy roadmap_knowledge_select_own
+on public.roadmap_knowledge for select
+using (user_id = auth.uid());
+
+drop policy if exists roadmap_knowledge_write_service_role on public.roadmap_knowledge;
+create policy roadmap_knowledge_write_service_role
+on public.roadmap_knowledge for insert, update, delete
+with check (auth.role() = 'service_role');
+
+-- ============================================================
+-- Vector extension + halfvec checks
+-- ============================================================
+
+-- Verify vector extension availability
+select extname, extversion
+from pg_extension
+where extname = 'vector';
+
+-- Verify halfvec type exists
+select typname
+from pg_type
+where typname = 'halfvec';
+
+-- ============================================================
+-- Validation queries (post-setup checks)
+-- ============================================================
+
+-- Function existence and signature checks
+select proname
+from pg_proc
+where proname = 'match_roadmap_docs';
+
+select
+  p.proname as function_name,
+  pg_catalog.pg_get_function_identity_arguments(p.oid) as args
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname = 'match_roadmap_docs';
+
+-- Legacy row check
+select count(*) as null_user_rows
+from public.roadmap_knowledge
+where user_id is null;
+
+-- Metadata integrity checks for grouped chunk ingestion
+select count(*) as missing_source_doc_id
+from public.roadmap_knowledge
+where not (metadata ? 'source_doc_id');
+
+select count(*) as missing_source_doc_hash
+from public.roadmap_knowledge
+where not (metadata ? 'source_doc_hash');
+
+select count(*) as missing_chunk_index
+from public.roadmap_knowledge
+where not (metadata ? 'chunk_index');
+
+select count(*) as missing_chunk_total
+from public.roadmap_knowledge
+where not (metadata ? 'chunk_total');
+
+select count(*) as missing_milestone_id
+from public.roadmap_knowledge
+where (metadata->>'source_type' = 'user_milestone')
+  and not (metadata ? 'milestone_id');
+
+-- Chunk ordering consistency by user/doc
+select
+  user_id,
+  metadata->>'source_doc_id' as source_doc_id,
+  count(*) as chunk_rows,
+  min((metadata->>'chunk_index')::int) as min_chunk_index,
+  max((metadata->>'chunk_index')::int) as max_chunk_index
+from public.roadmap_knowledge
+where metadata ? 'source_doc_id'
+group by user_id, metadata->>'source_doc_id'
+order by chunk_rows desc;
+
+-- Duplicate chunk index per user/doc (should be zero rows)
+select
+  user_id,
+  metadata->>'source_doc_id' as source_doc_id,
+  (metadata->>'chunk_index')::int as chunk_index,
+  count(*) as duplicate_count
+from public.roadmap_knowledge
+where metadata ? 'source_doc_id'
+  and metadata ? 'chunk_index'
+group by user_id, metadata->>'source_doc_id', (metadata->>'chunk_index')::int
+having count(*) > 1;
+
+-- Orphan milestone chunks (should be zero rows)
+select count(*) as orphan_milestone_chunks
+from public.roadmap_knowledge rk
+left join public.user_milestones um
+  on um.id::text = rk.metadata->>'milestone_id'
+ and um.user_id::text = rk.user_id::text
+where rk.metadata->>'source_type' = 'user_milestone'
+  and um.id is null;
+INSERT INTO grants_asean_2026 
+(id, name, agency, country, state, sector_tags, target_business_stage, min_readiness_score, max_funding_rm, deadline, requirements, application_url, is_active, created_at)
+VALUES
+('a1b2c3d4-1111-4c2b-9c3f-001122334455','Malaysia Digitalisation Grant','MDEC','Malaysia','Open to Malaysia Company',
+ARRAY['technology','retail & e-commerce','services'],
+'startup',60,100000,'2026-08-30',
+ARRAY['SSM Registration','Digitalisation plan','Company bank statement'],
+'https://mdec.my',true,NOW()),
+
+('a1b2c3d4-2222-4c2b-9c3f-001122334455','Agropreneur Development Grant','Ministry of Agriculture','Malaysia','Open to Malaysia Company',
+ARRAY['agriculture','food & beverage'],
+'msme',55,80000,'2026-09-10',
+ARRAY['Farm registration','Business proposal','Proof of land ownership or lease'],
+'https://mafi.gov.my',true,NOW()),
+
+('a1b2c3d4-3333-4c2b-9c3f-001122334455','ASEAN Startup Growth Fund','ASEAN Secretariat','ASEAN',
+'Open to Malaysia Company',ARRAY['technology','fintech','e-commerce'],
+'startup',70,200000,'2026-11-20',
+ARRAY['Startup pitch deck','Team background','Market validation'],
+'https://asean.org',true,NOW()),
+
+('a1b2c3d4-4444-4c2b-9c3f-001122334455','Women Entrepreneur Grant','Ministry of Women Development','Malaysia','Open to Malaysia Company',
+ARRAY['services','retail','food & beverage'],
+'startup',50,50000,'2026-07-25',
+ARRAY['Business registration','Owner IC copy','Business plan'],
+'https://kpwkm.gov.my',true,NOW()),
+
+('a1b2c3d4-5555-4c2b-9c3f-001122334455','Halal Industry Development Grant','Halal Development Corporation','Malaysia','Open to Malaysia Company',
+ARRAY['food & beverage','manufacturing'],
+'msme',65,120000,'2026-10-05',
+ARRAY['Halal certification plan','Company profile','Production process details'],
+'https://hdcglobal.com',true,NOW()),
+
+('a1b2c3d4-6666-4c2b-9c3f-001122334455','Green Technology Innovation Grant','Malaysian Green Technology Corporation','Malaysia','Open to Malaysia Company',
+ARRAY['green tech','manufacturing','technology'],
+'startup',70,180000,'2026-12-01',
+ARRAY['Environmental impact proposal','Innovation description','Financial projection'],
+'https://greentechmalaysia.my',true,NOW()),
+
+('a1b2c3d4-7777-4c2b-9c3f-001122334455','Youth Entrepreneur Fund','Ministry of Youth and Sports','Malaysia','Open to Malaysia Company',
+ARRAY['services','retail','technology'],
+'startup',45,40000,'2026-09-18',
+ARRAY['Youth entrepreneur proof','Business idea proposal','Financial estimate'],
+'https://kbs.gov.my',true,NOW()),
+
+('a1b2c3d4-8888-4c2b-9c3f-001122334455','Tourism Recovery Grant','Ministry of Tourism','Malaysia','Open to Malaysia Company',
+ARRAY['tourism','services','hospitality'],
+'msme',55,90000,'2026-08-12',
+ARRAY['Tourism license','Business recovery plan','Company registration'],
+'https://motac.gov.my',true,NOW()),
+
+('a1b2c3d4-9999-4c2b-9c3f-001122334455','ASEAN Digital Commerce Grant','ASEAN Business Council','ASEAN','Open to Malaysia Company',
+ARRAY['e-commerce','technology','logistics'],
+'startup',65,160000,'2026-11-30',
+ARRAY['Digital platform overview','Business model','Market expansion plan'],
+'https://aseanbusiness.org',true,NOW()),
+
+('a1b2c3d4-aaaa-4c2b-9c3f-001122334455','Innovation Commercialisation Grant','MOSTI','Malaysia','Open to Malaysia Company',
+ARRAY['technology','biotech','manufacturing'],
+'msme',75,250000,'2026-10-28',
+ARRAY['Research results','Commercialisation strategy','Company financial statement'],
+'https://mosti.gov.my',true,NOW())
+ON CONFLICT DO NOTHING;
