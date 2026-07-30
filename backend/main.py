@@ -59,10 +59,12 @@ async def chat(req: ChatRequest) -> ChatResponse:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Unexpected /chat failure.")
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error while processing chat request.",
-        ) from exc
+        detail = (
+            str(exc)
+            if settings.debug_errors
+            else "Internal server error while processing chat request."
+        )
+        raise HTTPException(status_code=500, detail=detail) from exc
 
 
 @app.post("/rag/sync", response_model=RagSyncResponse)

@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controller/survey_controller.dart';
 import '../model/survey_model.dart';
 import '../model/app_theme.dart';
-import 'main_shell.dart';
+import 'subscription_gate.dart';
 
 class SurveyScreen extends ConsumerWidget {
   const SurveyScreen({super.key});
@@ -18,7 +18,7 @@ class SurveyScreen extends ConsumerWidget {
     ref.listen(surveyControllerProvider, (_, next) {
       if (next.isComplete) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const MainShell()),
+          MaterialPageRoute(builder: (_) => const SubscriptionGate()),
         );
       }
     });

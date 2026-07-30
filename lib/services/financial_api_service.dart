@@ -8,18 +8,33 @@ import '../model/financial_model.dart';
 class FinancialApiService {
   String get _baseEndpoint {
     final configured = dotenv.env['FINANCIAL_API_BASE_URL'];
+    String endpoint;
     if (configured != null && configured.trim().isNotEmpty) {
-      return configured.trim().replaceAll(RegExp(r'/$'), '');
-    }
-    final chatEndpoint = dotenv.env['CHAT_API_URL'];
-    if (chatEndpoint != null && chatEndpoint.trim().isNotEmpty) {
-      final trimmed = chatEndpoint.trim();
-      if (trimmed.endsWith('/chat')) {
-        return trimmed.substring(0, trimmed.length - '/chat'.length);
+      endpoint = configured.trim();
+    } else {
+      final chatEndpoint = dotenv.env['CHAT_API_URL'];
+      final trimmed = chatEndpoint?.trim() ?? '';
+      if (trimmed.isNotEmpty) {
+        endpoint = trimmed.endsWith('/chat')
+            ? trimmed.substring(0, trimmed.length - '/chat'.length)
+            : trimmed;
+      } else {
+        endpoint = 'http://10.0.2.2:8000';
       }
-      return trimmed;
     }
-    return 'http://10.0.2.2:8000';
+    final uri = Uri.tryParse(endpoint);
+    if (uri == null ||
+        !uri.hasScheme ||
+        uri.host.isEmpty ||
+        !{'http', 'https'}.contains(uri.scheme) ||
+        endpoint.contains(RegExp(r'\s')) ||
+        uri.host == '0.0.0.0') {
+      throw StateError(
+        'Invalid backend URL. Use a public URL such as '
+        'https://your-service.onrender.com.',
+      );
+    }
+    return uri.toString().replaceAll(RegExp(r'/$'), '');
   }
 
   Future<FinancialSummary> fetchSummary({

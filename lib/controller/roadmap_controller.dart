@@ -95,6 +95,7 @@ class RoadmapController extends StateNotifier<RoadmapState> {
 
   Future<void> _loadUserRoadmap({String? forcedId}) async {
     final savedId = forcedId ?? await _resolveActiveUserId();
+    print('🔍 Resolved user ID: $savedId');
 
     if (savedId == null) {
       _loadedUserId = null;
@@ -113,6 +114,8 @@ class RoadmapController extends StateNotifier<RoadmapState> {
           .select()
           .eq('id', savedId)
           .maybeSingle();
+
+           print('📋 Survey data found: ${surveyData != null}'); // ← ADD THIS
 
       if (surveyData == null) {
         state = state.copyWith(isLoading: false);
