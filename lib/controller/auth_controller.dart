@@ -1,9 +1,10 @@
 // lib/controller/auth_controller.dart
-// Manages email/password and browser-based Google OAuth authentication.
+// Manages authentication state (email/password + Google Sign-In stubs).
+// Wire up firebase_auth + google_sign_in packages for production.
 
-import 'dart:async';
-
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -50,18 +51,10 @@ class AuthState {
 }
 
 class AuthController extends StateNotifier<AuthState> {
-  AuthController() : super(const AuthState()) {
-    _authSubscription = _supabase.auth.onAuthStateChange.listen((data) {
-      final user = data.session?.user;
-      if (data.event == AuthChangeEvent.signedIn && user != null) {
-        _completeOAuthSignIn(user);
-      }
-    });
-  }
+  AuthController() : super(const AuthState());
 
   // Get a convenient reference to the Supabase client
   final _supabase = Supabase.instance.client;
-  late final StreamSubscription<dynamic> _authSubscription;
 
 
   // Checks if the authenticated user already has a row in 'survey_responses'.
@@ -104,8 +97,9 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> signIn(String email, String password) async {
     state = state.copyWith(status: AuthStatus.loading);
     try {
+      final normalizedEmail = email.trim();
       final AuthResponse res = await _supabase.auth.signInWithPassword(
-        email: email,
+        email: normalizedEmail,
         password: password,
       );
 
@@ -117,11 +111,15 @@ class AuthController extends StateNotifier<AuthState> {
       state = state.copyWith(
         status: AuthStatus.success,
         userEmail: res.user?.email,
-        userName: res.user?.userMetadata?['full_name'] ?? email.split('@').first,
+        userName:
+            res.user?.userMetadata?['full_name'] ?? normalizedEmail.split('@').first,
         hasCompletedSurvey: hasData,
       );
     } on AuthException catch (e) {
-      state = state.copyWith(status: AuthStatus.error, errorMessage: e.message);
+      state = state.copyWith(
+        status: AuthStatus.error,
+        errorMessage: _friendlyAuthError(e.message),
+      );
     } catch (e) {
       state = state.copyWith(
           status: AuthStatus.error, errorMessage: 'An unexpected error occurred: $e');
@@ -131,8 +129,9 @@ class AuthController extends StateNotifier<AuthState> {
     Future<void> register(String name, String email, String password) async {
     state = state.copyWith(status: AuthStatus.loading);
     try {
+      final normalizedEmail = email.trim();
       final AuthResponse res = await _supabase.auth.signUp(
-        email: email,
+        email: normalizedEmail,
         password: password,
         data: {'full_name': name},
       );
@@ -154,7 +153,10 @@ class AuthController extends StateNotifier<AuthState> {
         hasCompletedSurvey: false,
       );
     } on AuthException catch (e) {
-      state = state.copyWith(status: AuthStatus.error, errorMessage: e.message);
+      state = state.copyWith(
+        status: AuthStatus.error,
+        errorMessage: _friendlyAuthError(e.message),
+      );
     } catch (e) {
       state = state.copyWith(
           status: AuthStatus.error, errorMessage: 'Registration failed: $e');
@@ -165,13 +167,40 @@ class AuthController extends StateNotifier<AuthState> {
   Future<void> signInWithGoogle() async {
     state = state.copyWith(status: AuthStatus.loading);
     try {
-      final launched = await _supabase.auth.signInWithOAuth(
-        OAuthProvider.google,
-        redirectTo: 'companyenchancer://login-callback',
+      
+      final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID']!;
+      final iosClientId = dotenv.env['GOOGLE_IOS_CLIENT_ID']!;
+
+      final googleSignIn = GoogleSignIn.instance;
+      await googleSignIn.initialize(
+        clientId: iosClientId,
+        serverClientId: webClientId,
       );
-      if (!launched) {
-        throw const AuthException('Unable to open Google sign-in.');
+
+      final googleUser = await googleSignIn.authenticate();
+
+      final googleAuth = googleUser.authentication;
+      final idToken = googleAuth.idToken;
+
+      if (idToken == null) {
+        state = state.copyWith(status: AuthStatus.error, errorMessage: 'No Email Was Found.');
+        return;
       }
+
+      // Pass the tokens to Supabase
+      final AuthResponse res = await _supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+      );
+      // Check if they have done the survey before
+      final hasData = await _checkSurveyStatus(res.user!.id);
+
+      state = state.copyWith(
+        status: AuthStatus.success,
+        userEmail: res.user?.email,
+        userName: res.user?.userMetadata?['full_name'] ?? res.user?.email?.split('@').first,
+        hasCompletedSurvey: hasData,
+      );
     } on AuthException catch (e) {
       state = state.copyWith(status: AuthStatus.error, errorMessage: e.message);
     } catch (e) {
@@ -184,16 +213,6 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   // ── Sign Out ───────────────────────────────────────────────────────────────
-  Future<void> _completeOAuthSignIn(User user) async {
-    final hasData = await _checkSurveyStatus(user.id);
-    state = state.copyWith(
-      status: AuthStatus.success,
-      userEmail: user.email,
-      userName: user.userMetadata?['full_name'] ?? user.email?.split('@').first,
-      hasCompletedSurvey: hasData,
-    );
-  }
-
   Future<void> signOut() async {
     await _supabase.auth.signOut();
     final prefs = await SharedPreferences.getInstance();
@@ -205,10 +224,22 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(status: AuthStatus.idle, errorMessage: null);
   }
 
-  @override
-  void dispose() {
-    _authSubscription.cancel();
-    super.dispose();
+  String _friendlyAuthError(String raw) {
+    final msg = raw.trim();
+    final lower = msg.toLowerCase();
+
+    if (lower.contains("email") && (lower.contains("invalid") || lower.contains("not valid"))) {
+      return "Email address looks invalid. Remove spaces and try again (example: name@gmail.com).";
+    }
+
+    if (lower.contains("rate limit") ||
+        lower.contains("too many") ||
+        lower.contains("limit exceeded") ||
+        lower.contains("over_email_send_rate_limit")) {
+      return "Too many signup attempts / verification emails sent. Wait a few minutes and try again.";
+    }
+
+    return msg;
   }
 }
 

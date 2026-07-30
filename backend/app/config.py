@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,7 +27,12 @@ class Settings(BaseSettings):
     debug_errors: bool = False
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # Load env vars from either repo-root or backend-local `.env`.
+        # This makes CLI scripts runnable from both the repo root and `backend/`.
+        env_file=(
+            Path(__file__).resolve().parents[2] / ".env",  # repo root
+            Path(__file__).resolve().parents[1] / ".env",  # backend/
+        ),
         env_file_encoding="utf-8",
         extra="ignore",
     )

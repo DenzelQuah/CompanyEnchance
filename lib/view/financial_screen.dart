@@ -560,14 +560,20 @@ class _DailyLogCard extends StatelessWidget {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 6),
-          Row(
+          Wrap(
+            spacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Text('Date:', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-              const SizedBox(width: 6),
+              const Text(
+                'Date:',
+                style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+              ),
               TextButton.icon(
                 onPressed: onPickDate,
                 icon: const Icon(Icons.event, size: 16),
-                label: Text('${logDate.year}-${logDate.month.toString().padLeft(2, '0')}-${logDate.day.toString().padLeft(2, '0')}'),
+                label: Text(
+                  '${logDate.year}-${logDate.month.toString().padLeft(2, '0')}-${logDate.day.toString().padLeft(2, '0')}',
+                ),
               ),
             ],
           ),
@@ -638,6 +644,8 @@ class _GrowthGraphCard extends StatelessWidget {
             Text(
               'Budget RM ${graph!.monthlyBudgetRm.toStringAsFixed(0)} | Target ${graph!.targetGrowthPct.toStringAsFixed(1)}%',
               style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -723,10 +731,11 @@ class _GrowthGraphCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            const Row(
+            const Wrap(
+              spacing: 16,
+              runSpacing: 6,
               children: [
                 _Legend(color: AppTheme.blue, label: 'Projection Growth'),
-                SizedBox(width: 16),
                 _Legend(color: AppTheme.green, label: 'Actual Growth'),
               ],
             ),

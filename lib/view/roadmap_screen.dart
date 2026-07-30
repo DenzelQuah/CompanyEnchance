@@ -423,48 +423,55 @@ class _MilestoneCard extends StatelessWidget {
             const SizedBox(height: 10),
             Row(
               children: [
-                Text(
-                  '📅 ${milestone.weekLabel}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.textMuted,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '⭐ +${milestone.xpReward} XP',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.gold,
+                Expanded(
+                  child: Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
+                    children: [
+                      Text(
+                        '📅 ${milestone.weekLabel}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppTheme.textMuted,
+                        ),
+                      ),
+                      Text(
+                        '⭐ +${milestone.xpReward} XP',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.gold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (isCurrent) ...[
-                  const Spacer(),
-                  // In _MilestoneCard — change the Start button:
-                ElevatedButton(
-                onPressed: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-  builder: (context) => Consumer(
-    builder: (context, ref, _) {
-      final survey = ref.watch(surveyControllerProvider);
-      return MilestoneDetailScreen(
-        milestone: milestone,
-        onComplete: onComplete,
-        survey: survey,
-      );
-    },
-  ),
-),
-  ),
-  style: ElevatedButton.styleFrom(
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => Consumer(
+                          builder: (context, ref, _) {
+                            final survey =
+                                ref.watch(surveyControllerProvider);
+                            return MilestoneDetailScreen(
+                              milestone: milestone,
+                              onComplete: onComplete,
+                              survey: survey,
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.blue,
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                     ),
                     child: const Text('Start →'),
-),
+                  ),
                 ],
               ],
             ),

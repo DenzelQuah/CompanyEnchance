@@ -18,23 +18,11 @@ class ChatApiResult {
 class ChatApiService {
   String get _endpoint {
     final configured = dotenv.env['CHAT_API_URL'];
-    final endpoint = configured?.trim().isNotEmpty == true
-        ? configured!.trim()
-        // Android emulator default for local backend.
-        : 'http://10.0.2.2:8000/chat';
-    final uri = Uri.tryParse(endpoint);
-    if (uri == null ||
-        !uri.hasScheme ||
-        uri.host.isEmpty ||
-        !{'http', 'https'}.contains(uri.scheme) ||
-        endpoint.contains(RegExp(r'\s')) ||
-        uri.host == '0.0.0.0') {
-      throw StateError(
-        'Invalid CHAT_API_URL. Use a public URL such as '
-        'https://your-service.onrender.com/chat.',
-      );
+    if (configured != null && configured.trim().isNotEmpty) {
+      return configured.trim();
     }
-    return uri.toString();
+    // Android emulator default for local backend.
+    return 'http://10.0.2.2:8000/chat';
   }
 
   Future<ChatApiResult> sendMessage({

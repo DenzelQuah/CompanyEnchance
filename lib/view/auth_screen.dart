@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../controller/auth_controller.dart';
 import '../model/app_theme.dart';
 import 'survey_screen.dart';
-import 'subscription_gate.dart';
+import 'main_shell.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -42,7 +42,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     if (hasData) {
       // 🚀 User has data -> Go to Dashboard
       Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const SubscriptionGate()),
+        MaterialPageRoute(builder: (_) => const MainShell()),
       );
     } else {
       // 📋 New User -> Go to Survey
