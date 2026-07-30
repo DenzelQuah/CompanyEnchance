@@ -63,6 +63,8 @@ class RoadmapController extends StateNotifier<RoadmapState> {
   }
 
   String? _loadedUserId;
+  Future<void>? _loadFuture;
+  String? _loadFutureUserId;
 
   Future<String?> _resolveActiveUserId() async {
     final prefs = await SharedPreferences.getInstance();
@@ -76,6 +78,8 @@ class RoadmapController extends StateNotifier<RoadmapState> {
     if (currentId == null) {
       if (_loadedUserId != null) {
         _loadedUserId = null;
+        _loadFuture = null;
+        _loadFutureUserId = null;
         state = state.copyWith(
           milestones: [],
           isLoading: false,
@@ -84,158 +88,249 @@ class RoadmapController extends StateNotifier<RoadmapState> {
       }
       return;
     }
+
+    // Prevent concurrent loads for the same user ID (can cause duplicate AI
+    // generation + duplicate DB inserts, which shows up as duplicated stages).
+    if (_loadFuture != null && _loadFutureUserId == currentId) {
+      await _loadFuture;
+      return;
+    }
     _loadedUserId = currentId;
     state = RoadmapState.initial;
-    await _loadUserRoadmap(forcedId: currentId);
+    _loadFutureUserId = currentId;
+    final f = _loadUserRoadmap(forcedId: currentId);
+    _loadFuture = f;
+    try {
+      await f;
+    } finally {
+      if (_loadFuture == f) {
+        _loadFuture = null;
+        _loadFutureUserId = null;
+      }
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Loads
   // ─────────────────────────────────────────────────────────────────────────
 
-  Future<void> _loadUserRoadmap({String? forcedId}) async {
-    final savedId = forcedId ?? await _resolveActiveUserId();
-    print('🔍 Resolved user ID: $savedId');
+Future<void> _loadUserRoadmap({String? forcedId}) async {
+  String? savedId = forcedId ?? await _resolveActiveUserId();
 
-    if (savedId == null) {
-      _loadedUserId = null;
+  if (savedId == null) {
+    _loadedUserId = null;
+    state = state.copyWith(isLoading: false);
+    return;
+  }
+
+  _loadedUserId = savedId;
+
+  try {
+    final supabase = Supabase.instance.client;
+
+    // 1. Load survey — try auth ID first, fallback to anonymous session ID
+    Map<String, dynamic>? surveyData = await supabase
+        .from('survey_responses')
+        .select()
+        .eq('id', savedId)
+        .maybeSingle();
+
+    if (surveyData == null) {
+      final prefs = await SharedPreferences.getInstance();
+      final localId = prefs.getString('survey_session_id');
+      if (localId != null && localId != savedId) {
+        print('🔁 Auth ID ($savedId) found nothing. Retrying with localId=$localId');
+        surveyData = await supabase
+            .from('survey_responses')
+            .select()
+            .eq('id', localId)
+            .maybeSingle();
+
+        if (surveyData != null) {
+          // Use the anonymous ID for all subsequent milestone lookups
+          savedId = localId;
+          _loadedUserId = localId;
+        }
+      }
+    }
+
+    if (surveyData == null) {
+      print('⚠ No survey found for id=$savedId. Check RLS or survey completion.');
       state = state.copyWith(isLoading: false);
       return;
     }
 
-    _loadedUserId = savedId;
+    final survey = SurveyModel.fromMap(surveyData, savedId);
 
-    try {
-      final supabase = Supabase.instance.client;
+    final savedStrategy = surveyData['ai_strategy'] as String?;
+if (savedStrategy != null && savedStrategy.isNotEmpty) {
+  state = state.copyWith(detailedStrategy: savedStrategy);
+}
+if (state.detailedStrategy == null && savedStrategy == null) {
+  _generateAiStrategy(survey);
+}
 
-      // 1. Load survey
-      final surveyData = await supabase
-          .from('survey_responses')
-          .select()
-          .eq('id', savedId)
-          .maybeSingle();
+    // 2. Check for saved milestones
+    final dbMilestones = await supabase
+        .from('user_milestones')
+        .select()
+        .eq('user_id', savedId)
+        .order('created_at', ascending: true);
 
-           print('📋 Survey data found: ${surveyData != null}'); // ← ADD THIS
+    if ((dbMilestones as List).isEmpty) {
+      print('✨ No saved roadmap. Generating AI roadmap...');
+      await _fetchAndSaveAiMilestones(survey);
+      _generateAiStrategy(survey);
+      return;
+    }
 
-      if (surveyData == null) {
-        state = state.copyWith(isLoading: false);
-        return;
+    // 3. Map DB rows to MilestoneModel (dedupe by week+title to protect UI
+    // from duplicated rows caused by concurrent inserts).
+    final List<MilestoneModel> savedList = [];
+    final Map<String, int> savedIndexByKey = {};
+
+    for (final m in (dbMilestones as List)) {
+      MilestoneStatus statusEnum = MilestoneStatus.locked;
+      if (m['status'] == 'done') statusEnum = MilestoneStatus.done;
+      if (m['status'] == 'current') statusEnum = MilestoneStatus.current;
+
+      List<String> loadedSteps = [];
+      if (m['steps'] != null) {
+        loadedSteps = List<String>.from(m['steps'] as List);
       }
 
-      final survey = SurveyModel.fromMap(surveyData, savedId);
-
-      // 2. Check for saved milestones
-      final dbMilestones = await supabase
-          .from('user_milestones')
-          .select()
-          .eq('user_id', savedId)
-          .order('created_at', ascending: true);
-
-      if ((dbMilestones as List).isEmpty) {
-        // No data — generate fresh
-        print('✨ No saved roadmap. Generating AI roadmap...');
-        await _fetchAndSaveAiMilestones(survey);
-        _generateAiStrategy(survey); // fire-and-forget
-        return;
+      List<String> altSteps = [];
+      if (m['alternative_steps'] != null) {
+        altSteps = List<String>.from(m['alternative_steps'] as List);
       }
 
-      // 3. Map DB rows to MilestoneModel with complete field mapping
-      final savedList = dbMilestones.map<MilestoneModel>((m) {
-        MilestoneStatus statusEnum = MilestoneStatus.locked;
-        if (m['status'] == 'done') statusEnum = MilestoneStatus.done;
-        if (m['status'] == 'current') statusEnum = MilestoneStatus.current;
-
-        List<String> loadedSteps = [];
-        if (m['steps'] != null) {
-          loadedSteps = List<String>.from(m['steps'] as List);
-        }
-
-        List<String> altSteps = [];
-        if (m['alternative_steps'] != null) {
-          altSteps = List<String>.from(m['alternative_steps'] as List);
-        }
-
-        // micro_tasks: nested array — micro_tasks[i] = sub-actions for steps[i]
-        List<List<String>> microTasks = [];
-        if (m['micro_tasks'] != null) {
-          microTasks = (m['micro_tasks'] as List)
-              .map((e) => List<String>.from(e as List? ?? []))
-              .toList();
-        }
-
-        List<MilestoneResource> resources = [];
-        if (m['resources'] != null) {
-          resources = (m['resources'] as List)
-              .whereType<Map<String, dynamic>>()
-              .map((r) => MilestoneResource.fromMap(r))
-              .toList();
-        }
-
-        return MilestoneModel(
-          id: m['id']?.toString() ?? '',
-          title: m['title'] ?? '',
-          description: m['description'] ?? '',
-          weekLabel: m['week_label'] ?? '',        // snake_case DB column
-          xpReward: m['xp_reward'] ?? 100,
-          status: statusEnum,
-          emoji: m['emoji'] ?? '🎯',
-          tool: m['tool'] ?? '',
-          toolUrl: m['tool_url'] ?? '',
-          estimatedTime: m['estimated_time'] ?? '',
-          source: m['source'] ?? '',
-          sourceInsight: m['source_insight'] ?? '',
-          relevanceReason: m['relevance_reason'] ?? '',
-          steps: loadedSteps,
-          alternativeSteps: altSteps,
-          currentStep: m['current_step'] ?? 0,
-          microTasks: microTasks,
-          resources: resources,
-        );
-      }).toList();
-
-      savedList.sort((a, b) {
-        // Extract number from "Week 3" -> 3
-        final int weekA = int.tryParse(a.weekLabel.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-        final int weekB = int.tryParse(b.weekLabel.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
-        
-        // Use compareTo for Ascending order (1, 2, 3...)
-        return weekA.compareTo(weekB); 
-      });
-
-      // 4. Self-heal: legacy rows have no steps — delete and regenerate once
-      if (savedList.isNotEmpty && savedList.first.steps.isEmpty) {
-        print('⚠ Legacy roadmap (empty steps). Deleting and regenerating...');
-        state = state.copyWith(isLoading: true);
-        await supabase
-            .from('user_milestones')
-            .delete()
-            .eq('user_id', savedId);
-        await _fetchAndSaveAiMilestones(survey);
-        return;
+      List<List<String>> microTasks = [];
+      if (m['micro_tasks'] != null) {
+        microTasks = (m['micro_tasks'] as List)
+            .map((e) => List<String>.from(e as List? ?? []))
+            .toList();
       }
 
-      print('📂 Loaded valid roadmap (${savedList.length} milestones)');
-      final totalXp = _computeTotalXp(savedList);
-      final level = _computeLevel(totalXp);
-      state = state.copyWith(
-        milestones: savedList,
-        isLoading: false,
-        totalXp: totalXp,
-        level: level,
-        levelLabel: _levelLabelFor(level),
+      List<MilestoneResource> resources = [];
+      if (m['resources'] != null) {
+        resources = (m['resources'] as List)
+            .whereType<Map<String, dynamic>>()
+            .map((r) => MilestoneResource.fromMap(r))
+            .toList();
+      }
+
+      final milestone = MilestoneModel(
+        id: m['id']?.toString() ?? '',
+        title: m['title'] ?? '',
+        description: m['description'] ?? '',
+        weekLabel: m['week_label'] ?? '',
+        xpReward: m['xp_reward'] ?? 100,
+        status: statusEnum,
+        emoji: m['emoji'] ?? '🎯',
+        tool: m['tool'] ?? '',
+        toolUrl: m['tool_url'] ?? '',
+        estimatedTime: m['estimated_time'] ?? '',
+        source: m['source'] ?? '',
+        sourceInsight: m['source_insight'] ?? '',
+        relevanceReason: m['relevance_reason'] ?? '',
+        steps: loadedSteps,
+        alternativeSteps: altSteps,
+        currentStep: m['current_step'] ?? 0,
+        microTasks: microTasks,
+        resources: resources,
       );
 
-      // Backfill micro_tasks for existing rows that were saved before this
-      // feature was added. Runs silently in background — UI is already showing.
-      final needsBackfill = savedList.any((m) => m.microTasks.isEmpty && m.steps.isNotEmpty);
-      if (needsBackfill) _backfillMicroTasks(savedList);
+      final key = '${milestone.weekLabel}||${milestone.title}'.trim();
+      final existingIndex = savedIndexByKey[key];
+      if (existingIndex == null) {
+        savedIndexByKey[key] = savedList.length;
+        savedList.add(milestone);
+        continue;
+      }
 
-      if (state.detailedStrategy == null) _generateAiStrategy(survey);
-    } catch (e) {
-      print('❌ Error loading roadmap: $e');
-      state = state.copyWith(isLoading: false);
+      // Merge: keep the "best" status and prefer the most complete content.
+      final existing = savedList[existingIndex];
+      int statusRank(MilestoneStatus s) {
+        switch (s) {
+          case MilestoneStatus.done:
+            return 3;
+          case MilestoneStatus.current:
+            return 2;
+          case MilestoneStatus.locked:
+            return 1;
+        }
+      }
+
+      final mergedStatus = statusRank(milestone.status) > statusRank(existing.status)
+          ? milestone.status
+          : existing.status;
+      final mergedSteps = existing.steps.isNotEmpty ? existing.steps : milestone.steps;
+      final mergedAltSteps = existing.alternativeSteps.isNotEmpty
+          ? existing.alternativeSteps
+          : milestone.alternativeSteps;
+      final mergedMicroTasks =
+          existing.microTasks.isNotEmpty ? existing.microTasks : milestone.microTasks;
+      final mergedResources =
+          existing.resources.isNotEmpty ? existing.resources : milestone.resources;
+
+      savedList[existingIndex] = MilestoneModel(
+        id: existing.id,
+        title: existing.title,
+        description: existing.description,
+        weekLabel: existing.weekLabel,
+        xpReward: existing.xpReward,
+        status: mergedStatus,
+        emoji: existing.emoji,
+        tool: existing.tool,
+        toolUrl: existing.toolUrl,
+        estimatedTime: existing.estimatedTime,
+        source: existing.source,
+        sourceInsight: existing.sourceInsight,
+        relevanceReason: existing.relevanceReason,
+        steps: mergedSteps,
+        alternativeSteps: mergedAltSteps,
+        currentStep: existing.currentStep,
+        microTasks: mergedMicroTasks,
+        resources: mergedResources,
+      );
     }
+
+    savedList.sort((a, b) {
+      final int weekA = int.tryParse(a.weekLabel.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      final int weekB = int.tryParse(b.weekLabel.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+      return weekA.compareTo(weekB);
+    });
+    
+    // 4. Self-heal: legacy rows with no steps — delete and regenerate
+final hasAnySteps = savedList.any((m) => m.steps.isNotEmpty);
+if (savedList.isNotEmpty && !hasAnySteps) {
+     await supabase.from('user_milestones').delete().eq('user_id', savedId);
+      print('⚠ Legacy roadmap (empty steps). Deleting and regenerating...');
+      state = state.copyWith(isLoading: true);
+      await _fetchAndSaveAiMilestones(survey);
+      return;
+    }
+
+    print('📂 Loaded valid roadmap (${savedList.length} milestones)');
+    final totalXp = _computeTotalXp(savedList);
+    final level = _computeLevel(totalXp);
+    state = state.copyWith(
+      milestones: savedList,
+      isLoading: false,
+      totalXp: totalXp,
+      level: level,
+      levelLabel: _levelLabelFor(level),
+    );
+
+    final needsBackfill = savedList.any((m) => m.microTasks.isEmpty && m.steps.isNotEmpty);
+    if (needsBackfill) _backfillMicroTasks(savedList);
+
+    if (state.detailedStrategy == null) _generateAiStrategy(survey);
+  } catch (e) {
+    print('❌ Error loading roadmap: $e');
+    state = state.copyWith(isLoading: false);
   }
+}
 
   // ─────────────────────────────────────────────────────────────────────────
   // Backfill micro_tasks for existing DB rows (one-time, fire-and-forget)
@@ -701,6 +796,11 @@ class RoadmapController extends StateNotifier<RoadmapState> {
       final response = await model.generateContent([Content.text(prompt)]);
       if (response.text != null) {
         state = state.copyWith(detailedStrategy: response.text);
+
+         await Supabase.instance.client
+      .from('survey_responses')
+      .update({'ai_strategy': response.text})
+      .eq('id', _loadedUserId!);
       }
     } catch (e) {
       print('⚠ AI strategy generation failed (non-fatal): $e');
@@ -776,12 +876,7 @@ class RoadmapController extends StateNotifier<RoadmapState> {
       }
     }
   }
-}
 
-final roadmapControllerProvider =
-    StateNotifierProvider<RoadmapController, RoadmapState>(
-  (_) => RoadmapController(),
-);
   int _computeTotalXp(List<MilestoneModel> milestones) {
     return milestones.fold<int>(0, (sum, m) => sum + m.earnedXp);
   }
@@ -804,3 +899,9 @@ final roadmapControllerProvider =
         return 'Level $level';
     }
   }
+}
+
+final roadmapControllerProvider =
+    StateNotifierProvider<RoadmapController, RoadmapState>(
+  (_) => RoadmapController(),
+);

@@ -1,17 +1,23 @@
-# 🌏 ASEAN Nexus
+CompanyEnchance#
 **Project Links**
-- Google Drive: https://drive.google.com/drive/folders/1Fhy_onQH1SY0pHod9JGOxqOlTLaSYrH4?usp=sharing
+- Google Drive(include report and demo video): https://drive.google.com/drive/folders/1Fhy_onQH1SY0pHod9JGOxqOlTLaSYrH4?usp=sharing
 - Figma: https://www.figma.com/design/77wCwxKarVVNumYtTDtW3R/CS8?node-id=0-1&t=qbcLPExCvQ4gIbVV-1
 
+      🌏 ASEAN Nexus
 *Your AI-Powered MSME Growth Engine*
 
 Built by Team Journey2DeWest for BorNEO HackWknd 2026 - Case Study 8: AI for Inclusive MSME Growth
+Members: 
+1) Allan Tan (allantan0930@gmail.com)
+2) Denzel Quah (denzelquahkahliang@gmail.com)
+3) Low Jia Cheng (jclow2005@gmail.com)
+4) Chan Xin Kai (chanxinkai8861@gmail.com)
 
 ---
 
 ## 📌 General Description
 
-*What your project does:*
+*What Project does:*
 
 ASEAN Nexus is an AI-driven consultative platform designed to support the growth of Micro, Small, and Medium Enterprises (MSMEs). It provides diagnostic business surveys, AI-generated growth roadmaps, financial tracking tools, and an integrated Retrieval-Augmented Generation (RAG) assistant to guide entrepreneurs through practical business decisions. It simplifies access to business intelligence and digital tools, helping informal micro-businesses transition into structured, competitive, and revenue-generating enterprises. 
 
@@ -20,7 +26,7 @@ ASEAN Nexus is an AI-driven consultative platform designed to support the growth
 * *SDG 9: Industry, Innovation, and Infrastructure:* The platform acts as a digital bridge, promoting technological upgrading by recommending specific modern software tools and providing a centralized infrastructure for business management. The RAG AI bot serves as an advanced technological infrastructure, democratizing access to high-level business intelligence and fostering a culture of innovation.
 
 *Target Users:*
-ASEAN MSMEs.
+1) ASEAN MSMEs.
 
 ---
 
@@ -125,6 +131,13 @@ A business knowledge markdown file is located in `backend/` (example: `backend/a
 
 Ingest it into the business knowledge vector table:
 ```powershell
+# Option A (from inside `backend/`):
+python scripts/insert_markdown_roadmap_knowledge.py --file "C:\path\to\backend\asean_nexus_knowledge_base.md" --source-doc-id "business:asean-nexus-kb-v1"
+
+# Option B (from repo root):
+python backend/scripts/insert_markdown_roadmap_knowledge.py --file "C:\path\to\backend\asean_nexus_knowledge_base.md" --source-doc-id "business:asean-nexus-kb-v1"
+
+# Option C (from repo root via wrapper):
 python scripts/insert_markdown_roadmap_knowledge.py --file "C:\path\to\backend\asean_nexus_knowledge_base.md" --source-doc-id "business:asean-nexus-kb-v1"
 ```
 
@@ -148,7 +161,7 @@ flutter run
 4) Open the Roadmap tab to view AI-generated milestones and progress.
 5) Open the Financial tab to view readiness and grant recommendations.
 6) Open the Chat/AI assistant to ask roadmap questions.
-7) Open the Forum tab to share thoughts and ideas
+7) Open the Forum tab to share thoughts and ideas.
 
 **Suggested test case**
 Use this consistent dataset to validate behavior:

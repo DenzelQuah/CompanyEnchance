@@ -1,0 +1,10 @@
+{
+  // Ensure the IDE uses the backend virtual environment so imports like `supabase` resolve.
+  "python.defaultInterpreterPath": "${workspaceFolder}\\\\backend\\\\.venv\\\\Scripts\\\\python.exe",
+  // Helps Pylance resolve `from app...` when working from the repo root.
+  "python.analysis.extraPaths": ["${workspaceFolder}\\\\backend"],
+  // Load repo-root env vars (backend/app/config.py also reads this file).
+  "python.envFile": "${workspaceFolder}\\\\.env",
+  "python.terminal.activateEnvironment": true,
+  "python-envs.pythonProjects": []
+}

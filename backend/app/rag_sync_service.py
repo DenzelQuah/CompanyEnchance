@@ -6,10 +6,10 @@ import re
 from typing import Any
 from uuid import UUID
 
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from supabase import Client, create_client
 
 from .config import settings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 
 class RagSyncService:
