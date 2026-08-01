@@ -1,13 +1,12 @@
-CompanyEnchance#
+🌏 ASEAN Nexus
+*Your AI-Powered MSME Growth Engine*
+
 **Project Links**
 - Google Drive(include report and demo video): https://drive.google.com/drive/folders/1Fhy_onQH1SY0pHod9JGOxqOlTLaSYrH4?usp=sharing
 - Figma: https://www.figma.com/design/77wCwxKarVVNumYtTDtW3R/CS8?node-id=0-1&t=qbcLPExCvQ4gIbVV-1
 
 > **Achievements:** 🥇 Gold Medalist — CITREX 2026 | Participant — BorNEO HackWknd 2026
 > **CITREX 2026 Gold Medal Announcement:** [View LinkedIn Post](https://www.linkedin.com/feed/update/urn:li:activity:7464540353996595202/)
-
-      🌏 ASEAN Nexus
-*Your AI-Powered MSME Growth Engine*
 
 Built by Team Journey2DeWest - Theme: AI for Inclusive MSME Growth
 Members: 
