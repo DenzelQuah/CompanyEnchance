@@ -3,10 +3,13 @@ CompanyEnchance#
 - Google Drive(include report and demo video): https://drive.google.com/drive/folders/1Fhy_onQH1SY0pHod9JGOxqOlTLaSYrH4?usp=sharing
 - Figma: https://www.figma.com/design/77wCwxKarVVNumYtTDtW3R/CS8?node-id=0-1&t=qbcLPExCvQ4gIbVV-1
 
+> **Achievements:** 🥇 Gold Medalist — CITREX 2026 | Participant — BorNEO HackWknd 2026
+> **CITREX 2026 Gold Medal Announcement:** [View LinkedIn Post](https://www.linkedin.com/feed/update/urn:li:activity:7464540353996595202/)
+
       🌏 ASEAN Nexus
 *Your AI-Powered MSME Growth Engine*
 
-Built by Team Journey2DeWest for BorNEO HackWknd 2026 - Case Study 8: AI for Inclusive MSME Growth
+Built by Team Journey2DeWest - Theme: AI for Inclusive MSME Growth
 Members: 
 1) Allan Tan (allantan0930@gmail.com)
 2) Denzel Quah (denzelquahkahliang@gmail.com)
@@ -181,3 +184,9 @@ Use this consistent dataset to validate behavior:
 - Dashboard shows a readiness score > 40
 - Roadmap includes export-focused milestones
 - Financial screen shows improvement areas and potential support programs
+
+**Achievement**
+- CITREX 2026 (Gold Medalist)
+- BorNEO HackWknd 2026 (Participant award)
+- Dubai Future Solutions 2026 
+
